@@ -42,7 +42,10 @@ export const Session = {
 	},
 	// 获取临时缓存
 	get(key: string) {
-		if (key === 'token') return Cookies.get(key);
+		if (key === 'token') {
+			const token = Cookies.get(key);
+			return token || '';  // 返回空字符串而不是undefined
+		}
 		let json = <string>window.sessionStorage.getItem(key);
 		return JSON.parse(json);
 	},

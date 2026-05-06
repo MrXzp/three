@@ -35,6 +35,12 @@ const viteConfig = defineConfig((mode: ConfigEnv) => {
 			open: false,
 			hmr: true,
 			proxy: {
+				'/api': {
+					target: env.VITE_API_URL || 'http://127.0.0.1:8084',
+					changeOrigin: true,
+					secure: false,
+					rewrite: (path) => path,
+				},
 				'/gitee': {
 					target: 'https://gitee.com',
 					ws: true,

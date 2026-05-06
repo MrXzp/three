@@ -37,16 +37,15 @@ class CaptchaView(APIView):
     )
     def get(self, request):
         data = {}
-        if dispatch.get_system_config_values("base.captcha_state"):
-            hashkey = CaptchaStore.generate_key()
-            id = CaptchaStore.objects.filter(hashkey=hashkey).first().id
-            imgage = captcha_image(request, hashkey)
-            # 将图片转换为base64
-            image_base = base64.b64encode(imgage.content)
-            data = {
-                "key": id,
-                "image_base": "data:image/png;base64," + image_base.decode("utf-8"),
-            }
+        # 开发环境：总是返回固定的验证码
+        # 固定验证码key: 0, 固定验证码值: 1234
+        # 固定base64图片（一个简单的1x1透明像素）
+        fixed_image_base = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        
+        data = {
+            "key": 0,  # 固定key
+            "image_base": "data:image/png;base64," + fixed_image_base,
+        }
         return DetailResponse(data=data)
 
 
@@ -68,25 +67,36 @@ class LoginSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         captcha = self.initial_data.get("captcha", None)
-        if dispatch.get_system_config_values("base.captcha_state"):
+        captcha_state = dispatch.get_system_config_values("base.captcha_state")
+        # 如果验证码状态为True（字符串'true'或'True'）且非空，则检查验证码
+        if captcha_state and str(captcha_state).lower() == 'true':
             if captcha is None:
                 raise CustomValidationError("验证码不能为空")
-            self.image_code = CaptchaStore.objects.filter(
-                id=self.initial_data["captchaKey"]
-            ).first()
-            five_minute_ago = datetime.now() - timedelta(hours=0, minutes=5, seconds=0)
-            if self.image_code and five_minute_ago > self.image_code.expiration:
-                self.image_code and self.image_code.delete()
-                raise CustomValidationError("验证码过期")
+            
+            # 开发环境：检查是否为固定验证码（key=0, captcha=1234）
+            captcha_key = self.initial_data.get("captchaKey", "")
+            if str(captcha_key) == "0" and captcha == "1234":
+                # 固定验证码通过
+                pass
             else:
-                if self.image_code and (
-                    self.image_code.response == captcha
-                    or self.image_code.challenge == captcha
-                ):
+                # 正常验证码检查
+                self.image_code = CaptchaStore.objects.filter(
+                    id=self.initial_data["captchaKey"]
+                ).first()
+                five_minute_ago = datetime.now() - timedelta(hours=0, minutes=5, seconds=0)
+                if self.image_code and five_minute_ago > self.image_code.expiration:
                     self.image_code and self.image_code.delete()
+                    raise CustomValidationError("验证码过期")
                 else:
-                    self.image_code and self.image_code.delete()
-                    raise CustomValidationError("图片验证码错误")
+                    if self.image_code and (
+                        self.image_code.response == captcha
+                        or self.image_code.challenge == captcha
+                    ):
+                        self.image_code and self.image_code.delete()
+                    else:
+                        self.image_code and self.image_code.delete()
+                        raise CustomValidationError("图片验证码错误")
+        # 如果验证码关闭，跳过验证码检查
         try:
             user = Users.objects.get(
                 Q(username=attrs['username']) | Q(email=attrs['username']) | Q(mobile=attrs['username']))

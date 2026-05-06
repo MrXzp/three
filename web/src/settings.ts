@@ -86,6 +86,8 @@ export default {
                 width: 300,
             },
         });
+        // 图片回显前缀，写死后端地址
+        const IMAGE_BASE_URL = 'http://127.0.0.1:18088';
         // 文件上传
         app.use(FsExtendsUploader, {
             defaultType: "form",
@@ -111,9 +113,10 @@ export default {
                     });
                 },
                 successHandle(ret: any) {
-                    // 上传完成后的结果处理， 此处应返回格式为{url:xxx,key:xxx}
+                    // 上传完成后只取相对路径，不要再 getBaseURL 拼接
+                    // file_list.py get_url 已返回 media/xxx 相对路径
                     return {
-                        url: getBaseURL(ret.data.url),
+                        url: ret.data.url,
                         key: ret.data.id,
                         ...ret.data
                     };
@@ -121,7 +124,8 @@ export default {
             },
                 valueBuilder(context: any){
                     const { row, key } = context
-                    return getBaseURL(row[key])
+                    // 直接返回写死前缀 + 相对路径
+                    return `${IMAGE_BASE_URL}/${row[key]}`;
                 }
         })
 

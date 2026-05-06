@@ -494,7 +494,13 @@ class CustomDjangoFilterBackend(DjangoFilterBackend):
                     continue
                 filterset_data_len = len(filterset.data.getlist(search_term_key))
                 if filterset_data_len == 1:
-                    query = Q(**{orm_lookup: filterset.data[search_term_key]})
+                    value = filterset.data[search_term_key]
+                    # 小程序传 "true"/"false" 字符串，Django BooleanField 只接受 Python bool
+                    if str(value).lower() == 'true':
+                        value = True
+                    elif str(value).lower() == 'false':
+                        value = False
+                    query = Q(**{orm_lookup: value})
                     queries.append(query)
                 elif filterset_data_len == 2:
                     orm_lookup += '__range'

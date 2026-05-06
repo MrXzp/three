@@ -181,7 +181,7 @@ function createRequestFunction(service: any) {
 		Object.assign(configDefault, config);
 		// const token = userStore.getToken;
 		const token = Session.get('token');
-		if (token != null) {
+		if (token && token.trim() !== '') {
 			// @ts-ignore
 			configDefault.headers.Authorization = 'JWT ' + token;
 		}

@@ -9,7 +9,8 @@ const IS_SHOW_UPGRADE_SESSION_KEY = 'isShowUpgrade';
 const VERSION_KEY = 'DVADMIN3_VERSION';
 const VERSION_FILE_NAME = 'version-build';
 
-const META_ENV = import.meta.env;
+// 使用process.env替代import.meta.env以避免CJS/ESM兼容性问题
+const META_ENV = process.env;
 
 export function showUpgrade() {
 	const isShowUpgrade = Session.get(IS_SHOW_UPGRADE_SESSION_KEY) ?? false;
@@ -26,12 +27,14 @@ export function showUpgrade() {
 
 // 生产环境前端版本校验，
 export async function checkVersion() {
-	if (META_ENV.MODE === 'development') {
+	if (process.env.NODE_ENV === 'development') {
 		// 开发环境无需校验前端版本
 		return;
 	}
 	// 获取线上版本号 t为时间戳，防止缓存
-	await axios.get(`${META_ENV.VITE_PUBLIC_PATH}${VERSION_FILE_NAME}?t=${new Date().getTime()}`).then((res) => {
+	// 注意：在开发环境中，VITE_PUBLIC_PATH可能未定义
+	const publicPath = process.env.VITE_PUBLIC_PATH || '/';
+	await axios.get(`${publicPath}${VERSION_FILE_NAME}?t=${new Date().getTime()}`).then((res) => {
 		const { status, data } = res || {};
 		if (status === 200) {
 			// 获取当前版本号
@@ -51,7 +54,12 @@ export async function checkVersion() {
 
 export function generateVersionFile() {
 	// 生成版本文件到public目录下version文件中
-	const package_version = META_ENV?.npm_package_version ?? process.env?.npm_package_version;
+	const package_version = process.env?.npm_package_version;
+
+	if (!package_version) {
+		console.warn('无法获取package版本号，跳过生成版本文件');
+		return;
+	}
 
 	const version = `${package_version}.${new Date().getTime()}`;
 	fs.writeFileSync(`public/${VERSION_FILE_NAME}`, version);

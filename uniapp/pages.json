@@ -1,0 +1,161 @@
+{
+	"pages": [
+		{
+			"path": "pages/login/login",
+			"style": {
+				"navigationBarTitleText": "",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "首页",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814",
+				"navigationBarDisplay": "none"
+			}
+		},
+		{
+			"path": "pages/user/order/index",
+			"style": {
+				"navigationBarTitleText": "我的订单",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/user/order/detail",
+			"style": {
+				"navigationBarTitleText": "订单详情",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/user/order/create",
+			"style": {
+				"navigationBarTitleText": "填写订单",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/user/order/review",
+			"style": {
+				"navigationBarTitleText": "评价服务",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/user/service/detail",
+			"style": {
+				"navigationBarTitleText": "服务详情",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/user/my/index",
+			"style": {
+				"navigationBarTitleText": "我的",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/user/my/apply_hunter",
+			"style": {
+				"navigationBarTitleText": "申请陪玩达人",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/user/my/hunter_center",
+			"style": {
+				"navigationBarTitleText": "达人中心",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/user/my/withdraw",
+			"style": {
+				"navigationBarTitleText": "提现申请",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/handler/index/index",
+			"style": {
+				"navigationBarTitleText": "接单大厅",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/handler/order/index",
+			"style": {
+				"navigationBarTitleText": "我的接单",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/handler/order/detail",
+			"style": {
+				"navigationBarTitleText": "订单详情",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/handler/my/index",
+			"style": {
+				"navigationBarTitleText": "我的",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "white",
+		"navigationBarTitleText": "粥一把",
+		"navigationBarBackgroundColor": "#050814",
+		"backgroundColor": "#050814",
+		"vueVersion": "2"
+	},
+	"easycom": {
+		"autoscan": true,
+		"custom": {}
+	},
+	"tabBar": {
+		"custom": true,
+		"color": "#4a5a7a",
+		"selectedColor": "#00f5ff",
+		"backgroundColor": "#050814",
+		"borderStyle": "black",
+		"list": [
+			{
+				"pagePath": "pages/index/index",
+				"text": "首页"
+			},
+			{
+				"pagePath": "pages/user/my/index",
+				"text": "我的"
+			},
+			{
+				"pagePath": "pages/handler/index/index",
+				"text": "接单"
+			},
+			{
+				"pagePath": "pages/user/order/index",
+				"text": "订单"
+			}
+		]
+	}
+}

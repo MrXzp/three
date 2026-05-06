@@ -1,9 +1,68 @@
-/backend/venv
-/backend/.idea
-.idea
+# =============================================================
+# Python / Django
+# =============================================================
+backend/venv/
+backend/__pycache__/
+backend/*/__pycache__/
+backend/*/*/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/.env
+backend/logs/*.log
+.venv/
+venv/
+env/
 
-.history/
+# =============================================================
+# UniApp / 微信小程序
+# =============================================================
+uniapp/unpackage/
+uniapp/node_modules/
+uniapp/dist/
+uniapp/.hbuilderx/
+uniapp/package-lock.json
+
+# =============================================================
+# Web 前端
+# =============================================================
+web/node_modules/
+web/dist/
+web/.env
+web/.env.local
+web/.env.development
+web/.env.production
+
+# =============================================================
+# IDE / 编辑器
+# =============================================================
+.idea/
 .vscode/
-web/package-lock.json
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
 
-*.bat
+# =============================================================
+# 测试 / 调试脚本（根目录临时文件）
+# =============================================================
+*.pyc
+*.log
+.env
+.env.local
+error_*.md
+error_*.txt
+error_*.log
+S9_*.md
+S9_*.html
+check_*.py
+test_*.py
+fix_*.py
+simple_*.py
+final_*.py
+complete_*.py
+verify_*.py
+inspect.py
+fix_withdraw.py
+crud-gen.sh

@@ -54,9 +54,15 @@ class ApiLoggingMiddleware(MiddlewareMixin):
         except Exception:
             return
         user = get_request_user(request)
+        # 检查用户类型，只有 Users 模型实例才能设置 creator
+        from dvadmin.system.models import Users
+        creator = None
+        if user and not isinstance(user, AnonymousUser) and isinstance(user, Users):
+            creator = user
+
         info = {
             'request_ip': getattr(request, 'request_ip', 'unknown'),
-            'creator': user if not isinstance(user, AnonymousUser) else None,
+            'creator': creator,
             'dept_belong_id': getattr(request.user, 'dept_id', None),
             'request_method': request.method,
             'request_path': request.request_path,

@@ -19,34 +19,15 @@
             <span>{{userInfos.pwd_change_count===0?'初次登录请修改密码':'欢迎登录'}}</span>
           </div>
 					<div class="login-right-warp-main-form">
-						<div v-if="!state.isScan">
-							<el-tabs v-model="state.tabsActiveName">
-                <el-tab-pane :label="$t('message.label.changePwd')" name="changePwd"  v-if="userInfos.pwd_change_count===0">
-                  <ChangePwd />
-                </el-tab-pane>
-								<el-tab-pane :label="$t('message.label.one1')" name="account" v-else>
-									<Account />
-								</el-tab-pane>
-
-								<!-- TODO 手机号码登录未接入，展示隐藏 -->
-								<el-tab-pane :label="$t('message.label.two2')" name="mobile">
-									<Mobile />
-								</el-tab-pane>
-
-                <el-tab-pane :label="$t('message.label.two3')" name="scan">
-									<scan />
-								</el-tab-pane>
-
-
-							</el-tabs>
+						<!-- 只显示账号密码登录，移除其他登录方式 -->
+						<div>
+              <div v-if="userInfos.pwd_change_count===0">
+                <ChangePwd />
+              </div>
+              <div v-else>
+                <Account />
+              </div>
 						</div>
-            <OAuth2 />
-
-            <!--						<Scan v-if="state.isScan" />-->
-<!--						<div class="login-content-main-sacn" @click="state.isScan = !state.isScan">-->
-<!--							<i class="iconfont" :class="state.isScan ? 'icon-diannao1' : 'icon-barcode-qr'"></i>-->
-<!--							<div class="login-content-main-sacn-delta"></div>-->
-<!--						</div>-->
 					</div>
 				</div>
 			</div>
@@ -84,12 +65,9 @@ import loginMain from '/@/assets/login-main.svg';
 import loginBg from '/@/assets/login-bg.png';
 import { SystemConfigStore } from '/@/stores/systemConfig'
 import { getBaseURL } from "/@/utils/baseUrl";
-// 引入组件
+// 引入组件 - 只保留账号密码登录和修改密码
 const Account = defineAsyncComponent(() => import('/@/views/system/login/component/account.vue'));
-const Mobile = defineAsyncComponent(() => import('/@/views/system/login/component/mobile.vue'));
-const Scan = defineAsyncComponent(() => import('/@/views/system/login/component/scan.vue'));
 const ChangePwd = defineAsyncComponent(() => import('/@/views/system/login/component/changePwd.vue'));
-const OAuth2 = defineAsyncComponent(() => import('/@/views/system/login/component/oauth2.vue'));
 
 import _ from "lodash-es";
 import {useUserInfo} from "/@/stores/userInfo";
@@ -99,8 +77,7 @@ const { userInfos } = storeToRefs(useUserInfo());
 const storesThemeConfig = useThemeConfig();
 const { themeConfig } = storeToRefs(storesThemeConfig);
 const state = reactive({
-	tabsActiveName: 'account',
-	isScan: false,
+	// 移除tabs和扫码相关状态，只保留必要的
 });
 
 

@@ -22,7 +22,8 @@
 				</template>
 			</el-input>
 		</el-form-item>
-		<el-form-item class="login-animation3" v-if="isShowCaptcha" prop="captcha">
+		<!-- 验证码已关闭，移除验证码字段 -->
+		<!-- <el-form-item class="login-animation3" v-if="isShowCaptcha" prop="captcha">
 			<el-col :span="15">
 				<el-input type="text" maxlength="4" :placeholder="$t('message.account.accountPlaceholder3')"
 					v-model="ruleForm.captcha" clearable autocomplete="off">
@@ -37,7 +38,7 @@
 					<el-image :src="ruleForm.captchaImgBase" @click="refreshCaptcha" />
 				</el-button>
 			</el-col>
-		</el-form-item>
+		</el-form-item> -->
 		<el-form-item class="login-animation4">
 			<el-button type="primary" class="login-content-submit" round @click="loginClick"
 				:loading="loading.signIn">
@@ -85,10 +86,10 @@ export default defineComponent({
 		const route = useRoute();
 		const router = useRouter();
 		const state = reactive({
-			isShowPassword: false,
+			isShowPassword: true,  // 默认显示密码（明文）
 			ruleForm: {
-				username: '',
-				password: '',
+				username: 'superadmin',  // 默认填入超级管理员账号
+				password: 'admin123456', // 默认填入密码
 				captcha: '',
 				captchaKey: '',
 				captchaImgBase: '',
@@ -108,13 +109,13 @@ export default defineComponent({
 					trigger: 'blur',
 				},
 			],
-			captcha: [
-				{
-					required: true,
-					message: '请填写验证码',
-					trigger: 'blur',
-				},
-			],
+			// captcha: [
+			// 	{
+			// 		required: true,
+			// 		message: '请填写验证码',
+			// 		trigger: 'blur',
+			// 	},
+			// ],
 		})
 		const formRef = ref();
 		// 时间获取
@@ -146,7 +147,16 @@ export default defineComponent({
 			if (!formRef.value) return
 			await formRef.value.validate((valid: any) => {
 				if (valid) {
-					loginApi.login({ ...state.ruleForm, password: Md5.hashStr(state.ruleForm.password) }).then((res: any) => {
+					// 即使验证码关闭，也发送虚拟验证码数据避免后端错误
+					const loginData = { 
+						...state.ruleForm, 
+						// password: Md5.hashStr(state.ruleForm.password),  // 注释掉MD5加密
+						password: state.ruleForm.password,  // 使用明文密码
+						captcha: '1234',      // 虚拟验证码
+						captchaKey: '0',      // 虚拟key
+						captchaImgBase: ''    // 空字符串
+					};
+					loginApi.login(loginData).then((res: any) => {
 						if (res.code === 2000) {
               const {data} = res
               Cookies.set('username', res.data.username);
@@ -208,7 +218,8 @@ export default defineComponent({
 			NextLoading.start();
 		};
 		onMounted(() => {
-			getCaptcha();
+			// 开发环境关闭验证码，不调用验证码接口
+			// getCaptcha();
 			//获取系统配置
 			SystemConfigStore().getSystemConfigs();
 		});

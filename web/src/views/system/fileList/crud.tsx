@@ -149,8 +149,9 @@ export const createCrudOptions = function ({ crudExpose, context }: CreateCrudOp
             minWidth: 360,
             component: {
                 async buildUrl(value: any) {
+                    // file_list get_url 已返回 media/xxx 相对路径，这里只需要拼域名
                     return getBaseURL(value);
-                    }
+                }
             }
           },
         },
