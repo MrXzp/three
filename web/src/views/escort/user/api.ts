@@ -1,7 +1,7 @@
 import { request } from '/@/utils/service';
 import { PageQuery, AddReq, DelReq, EditReq, InfoReq } from '@fast-crud/fast-crud';
 
-export const apiPrefix = '/api/escort/escort_user/';
+export const apiPrefix = '/api/escort/web/escort_user/';
 
 export function GetList(query: PageQuery) {
     return request({

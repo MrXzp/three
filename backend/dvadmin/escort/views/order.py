@@ -159,7 +159,8 @@ class OrderViewSet(CustomModelViewSet):
 
     def get_authenticators(self):
         from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
-        return [EscortUserAuthentication()]
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        return [EscortUserAuthentication(), JWTAuthentication()]
     
     queryset = Order.objects.all().order_by('-create_datetime')
     serializer_class = OrderSerializer
@@ -724,6 +725,30 @@ class OrderViewSet(CustomModelViewSet):
         status_filter = request.query_params.get('status')
 
         queryset = Order.objects.filter(hunters__hunter_id=user_id).distinct().order_by('-create_datetime')
+
+        if status_filter is not None:
+            try:
+                queryset = queryset.filter(status=int(status_filter))
+            except ValueError:
+                pass
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return SuccessResponse(data=serializer.data)
+
+    @action(methods=["GET"], detail=False, permission_classes=[IsAuthenticated])
+    def customer_orders(self, request, *args, **kwargs):
+        """
+        客户获取自己下过的订单列表
+        """
+        user_id = request.auth.get('user_id') if hasattr(request, 'auth') and request.auth else request.user.id
+        status_filter = request.query_params.get('status')
+
+        queryset = Order.objects.filter(customer_id=user_id).order_by('-create_datetime')
 
         if status_filter is not None:
             try:

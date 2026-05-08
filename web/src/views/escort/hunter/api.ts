@@ -1,7 +1,7 @@
 import { request } from '/@/utils/service';
 import { PageQuery, AddReq, DelReq, EditReq, InfoReq } from '@fast-crud/fast-crud';
 
-export const apiPrefix = '/api/escort/escort_user/';
+export const apiPrefix = '/api/escort/web/hunter/';
 
 export function GetList(query: PageQuery) {
     return request({
@@ -42,7 +42,7 @@ export function DelObj(id: DelReq) {
     });
 }
 
-/** 批准陪玩达人申请 */
+/** 批准打手申请 */
 export function ApproveHunter(id: number) {
     return request({
         url: apiPrefix + id + '/approve_hunter/',
@@ -50,7 +50,7 @@ export function ApproveHunter(id: number) {
     });
 }
 
-/** 拒绝陪玩达人申请 */
+/** 拒绝打手申请 */
 export function RejectHunter(id: number, reason?: string) {
     return request({
         url: apiPrefix + id + '/reject_hunter/',
@@ -62,7 +62,7 @@ export function RejectHunter(id: number, reason?: string) {
 /** 暂停打手 */
 export function SuspendHunter(id: number) {
     return request({
-        url: apiPrefix + id + '/suspend_hunter/',
+        url: apiPrefix + id + '/suspend/',
         method: 'post',
     });
 }
@@ -70,7 +70,7 @@ export function SuspendHunter(id: number) {
 /** 激活打手 */
 export function ActivateHunter(id: number) {
     return request({
-        url: apiPrefix + id + '/activate_hunter/',
+        url: apiPrefix + id + '/activate/',
         method: 'post',
     });
 }
@@ -78,7 +78,7 @@ export function ActivateHunter(id: number) {
 /** 撤销打手身份 */
 export function RevokeHunter(id: number) {
     return request({
-        url: apiPrefix + id + '/revoke_hunter/',
+        url: apiPrefix + id + '/revoke/',
         method: 'post',
     });
 }

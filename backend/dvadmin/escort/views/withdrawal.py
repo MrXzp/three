@@ -7,7 +7,6 @@
 """
 from rest_framework import serializers
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
 from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
 from dvadmin.utils.json_response import ErrorResponse, DetailResponse, SuccessResponse
 from dvadmin.utils.serializers import CustomModelSerializer
@@ -40,13 +39,13 @@ class WithdrawalViewSet(CustomModelViewSet):
 
     def get_authenticators(self):
         from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
-        return [EscortUserAuthentication()]
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        return [EscortUserAuthentication(), JWTAuthentication()]
 
     queryset = Withdrawal.objects.all().select_related('user')
     serializer_class = WithdrawalSerializer
     filter_fields = ['user', 'status']
     search_fields = ['user__nickname', 'user__phone', 'payment_no']
-    permission_classes = [IsAuthenticated]  # 使用简单认证
     
     def get_queryset(self):
         queryset = super().get_queryset()

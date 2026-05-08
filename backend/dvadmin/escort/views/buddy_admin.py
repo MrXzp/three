@@ -9,8 +9,6 @@ from django.utils import timezone
 from django.db.models import Sum
 from rest_framework import serializers
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
-from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
 from dvadmin.utils.json_response import ErrorResponse, DetailResponse, SuccessResponse
 from dvadmin.utils.serializers import CustomModelSerializer
 from dvadmin.utils.viewset import CustomModelViewSet
@@ -26,6 +24,7 @@ class BuddySerializer(CustomModelSerializer):
         read_only_fields = ["id"]
         fields = [
             'id', 'openid', 'nickname', 'avatar_url', 'phone',
+            'real_name', 'id_card', 'id_card_front', 'id_card_back',
             'hunter_status', 'hunter_status_display',
             'apply_time', 'approve_time', 'reject_reason',
             'balance', 'total_income', 'total_withdrawal',
@@ -48,11 +47,18 @@ class BuddyViewSet(CustomModelViewSet):
 
     def get_authenticators(self):
         from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
-        return [EscortUserAuthentication()]
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        return [EscortUserAuthentication(), JWTAuthentication()]
 
+    # 注意：此处展示所有状态的打手（含待审核），以便管理员进行审批操作
     queryset = EscortUser.objects.filter(
-        hunter_status__in=[EscortUser.HUNTER_APPROVED, EscortUser.HUNTER_SUSPENDED]
-    ).order_by('-approve_time', '-create_datetime')
+        hunter_status__in=[
+            EscortUser.HUNTER_PENDING,
+            EscortUser.HUNTER_APPROVED,
+            EscortUser.HUNTER_SUSPENDED,
+            EscortUser.HUNTER_NOT_APPLIED,
+        ]
+    ).order_by('-apply_time', '-create_datetime')
     serializer_class = BuddySerializer
     create_serializer_class = BuddyCreateUpdateSerializer
     update_serializer_class = BuddyCreateUpdateSerializer
@@ -60,11 +66,25 @@ class BuddyViewSet(CustomModelViewSet):
     search_fields = ['nickname', 'openid', 'phone']
     permission_classes = []
 
+    def get_authenticators(self):
+        from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        return [EscortUserAuthentication(), JWTAuthentication()]
+
     @action(methods=["GET"], detail=False, permission_classes=[])
     def statistics(self, request, *args, **kwargs):
-        """打手统计"""
-        queryset = self.queryset
+        """打手统计（包含所有状态）"""
+        from django.db.models import Q
+        queryset = EscortUser.objects.filter(
+            Q(hunter_status__in=[
+                EscortUser.HUNTER_PENDING,
+                EscortUser.HUNTER_APPROVED,
+                EscortUser.HUNTER_SUSPENDED,
+                EscortUser.HUNTER_REJECTED,
+            ])
+        )
         total = queryset.count()
+        pending = queryset.filter(hunter_status=EscortUser.HUNTER_PENDING).count()
         active = queryset.filter(hunter_status=EscortUser.HUNTER_APPROVED).count()
         suspended = queryset.filter(hunter_status=EscortUser.HUNTER_SUSPENDED).count()
         total_income = queryset.aggregate(total=Sum('total_income'))['total'] or 0
@@ -72,6 +92,7 @@ class BuddyViewSet(CustomModelViewSet):
 
         return SuccessResponse(data={
             'total_hunters': total,
+            'pending_hunters': pending,
             'active_hunters': active,
             'suspended_hunters': suspended,
             'total_income': float(total_income),
@@ -108,3 +129,28 @@ class BuddyViewSet(CustomModelViewSet):
         instance.hunter_status = EscortUser.HUNTER_APPROVED
         instance.save()
         return SuccessResponse(msg="打手已激活")
+
+    # ========== Web 端管理员专用接口 ==========
+
+    @action(methods=["POST"], detail=True, permission_classes=[])
+    def approve_hunter(self, request, *args, **kwargs):
+        """批准打手申请（Web 端管理员专用）"""
+        instance = self.get_object()
+        if instance.hunter_status != EscortUser.HUNTER_PENDING:
+            return ErrorResponse(msg="只有审核中的申请才能批准")
+        instance.hunter_status = EscortUser.HUNTER_APPROVED
+        instance.approve_time = timezone.now()
+        instance.save()
+        return SuccessResponse(msg="打手申请已批准")
+
+    @action(methods=["POST"], detail=True, permission_classes=[])
+    def reject_hunter(self, request, *args, **kwargs):
+        """拒绝打手申请（Web 端管理员专用）"""
+        instance = self.get_object()
+        if instance.hunter_status != EscortUser.HUNTER_PENDING:
+            return ErrorResponse(msg="只有审核中的申请才能拒绝")
+        reject_reason = request.data.get('reject_reason', '资料审核不通过，请重新提交')
+        instance.hunter_status = EscortUser.HUNTER_REJECTED
+        instance.reject_reason = reject_reason
+        instance.save()
+        return SuccessResponse(msg="打手申请已拒绝")

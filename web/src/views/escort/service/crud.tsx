@@ -106,7 +106,7 @@ export const createCrudOptions = function ({ crudExpose }: CreateCrudOptionsProp
                     title: '所属游戏',
                     type: 'dict-select',
                     dict: dict({
-                        url: '/api/escort/service_category/',
+                        url: '/api/escort/web/service_category/',
                         async: false,
                         label: 'name',
                         value: 'id',

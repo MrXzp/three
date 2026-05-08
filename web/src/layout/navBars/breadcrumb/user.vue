@@ -260,8 +260,12 @@ let eventSource: EventSource | null = null; // 存储 EventSource 实例
 const token = Session.get('token');
 const isConnected = ref(false); // 标志变量，记录是否已连接过
 const getMessageCenterCount = () => {
+	// token 为空或格式不合法时不连接 SSE
+	if (!token || !token.trim() || token.split('.').length !== 3) {
+		return;
+	}
 	// 创建 EventSource 实例并连接到后端 SSE 端点
-	eventSource = new EventSource(`${getBaseURL()}sse/?token=${token}`); // 替换为你的后端地址
+	eventSource = new EventSource(`${getBaseURL()}sse/?token=${encodeURIComponent(token)}`); // 替换为你的后端地址
 	// 首次连接成功时打印一次
 	eventSource.onopen = function () {
 		if (!isConnected.value) {

@@ -32,7 +32,7 @@ class EscortUserAuthentication(JWTAuthentication):
 
         # 如果 token 里没有任何 escort 专属字段，说明不是陪玩平台签发的 token
         # 静默跳过，让认证链继续（不会 401，也不会阻止后续认证器）
-        if not user_id and not openid:
+        if not openid:
             return None
 
         try:

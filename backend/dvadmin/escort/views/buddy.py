@@ -48,13 +48,14 @@ class BuddyRelationViewSet(CustomModelViewSet):
 
     def get_authenticators(self):
         from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
-        return [EscortUserAuthentication()]
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        return [EscortUserAuthentication(), JWTAuthentication()]
 
     queryset = BuddyRelation.objects.all().select_related('user_a', 'user_b')
     serializer_class = BuddyRelationSerializer
     filter_fields = ['user_a', 'user_b', 'status']
     search_fields = ['user_a__nickname', 'user_b__nickname', 'user_a__phone', 'user_b__phone']
-    permission_classes = [IsAuthenticated]  # 使用简单认证
+    permission_classes = []
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -112,7 +113,7 @@ class BuddyRelationViewSet(CustomModelViewSet):
         code = uuid.uuid4().hex[:12].upper()
         return SuccessResponse(data={
             'code': code,
-            'qrcode_url': f'/api/escort/buddy/qrcode/?code={code}'
+            'qrcode_url': f'/api/escort/app/buddy/qrcode/?code={code}'
         })
 
     @action(methods=['GET'], detail=False)

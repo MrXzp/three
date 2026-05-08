@@ -155,7 +155,7 @@ export default {
       try {
         const params = { page: this.page, page_size: this.PAGE_SIZE }
         if (this.currentStatus !== null) params.status = this.currentStatus
-        const res = await get(ORDER_API.list, params)
+        const res = await get(ORDER_API.customerOrders, params)
         // 后端返回格式: {code: 2000, data: [...], page: 1, total: 100}
         let results = Array.isArray(res) ? res : (res && res.data) || []
         if (!reset) results = this.orders.concat(results)

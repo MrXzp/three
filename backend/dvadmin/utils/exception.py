@@ -61,9 +61,6 @@ def CustomExceptionHandler(ex, context):
     elif isinstance(ex, ProtectedError):
         set_rollback()
         msg = "删除失败:该条数据与其他数据有相关绑定"
-    # elif isinstance(ex, DatabaseError):
-    #     set_rollback()
-    #     msg = "接口服务器异常,请联系管理员"
     elif isinstance(ex, Exception):
         logger.exception(traceback.format_exc())
         msg = str(ex)

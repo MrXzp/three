@@ -52,8 +52,9 @@ class ServiceCategoryViewSet(CustomModelViewSet):
 
     def get_authenticators(self):
         from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
-        return [EscortUserAuthentication()]
-    
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        return [EscortUserAuthentication(), JWTAuthentication()]
+
     queryset = ServiceCategory.objects.all().order_by('sort', '-create_datetime')
     serializer_class = ServiceCategorySerializer
     create_serializer_class = ServiceCategoryCreateUpdateSerializer
@@ -120,8 +121,9 @@ class ServiceImageViewSet(CustomModelViewSet):
 
     def get_authenticators(self):
         from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
-        return [EscortUserAuthentication()]
-    
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        return [EscortUserAuthentication(), JWTAuthentication()]
+
     queryset = ServiceImage.objects.all().order_by('sort', '-create_datetime')
     serializer_class = ServiceImageSerializer
     filter_fields = ['service']
@@ -141,8 +143,9 @@ class ServiceViewSet(CustomModelViewSet):
 
     def get_authenticators(self):
         from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
-        return [EscortUserAuthentication()]
-    
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        return [EscortUserAuthentication(), JWTAuthentication()]
+
     queryset = Service.objects.all().order_by('sort', '-create_datetime')
     serializer_class = ServiceSerializer
     create_serializer_class = ServiceCreateUpdateSerializer

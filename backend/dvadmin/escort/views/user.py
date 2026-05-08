@@ -7,29 +7,21 @@
 """
 import json
 import urllib.request
-import urllib.parse
-import urllib.error
 import os
 import uuid
 import time
-from datetime import datetime, timedelta
-from django.utils import timezone
-from django.db.models import Sum
 from django.conf import settings
 from django.core.files.storage import default_storage
 from rest_framework import serializers
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
 from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.db.models import Q
 from dvadmin.utils.json_response import ErrorResponse, DetailResponse, SuccessResponse
 from dvadmin.utils.serializers import CustomModelSerializer
 from dvadmin.utils.viewset import CustomModelViewSet
-from dvadmin.utils.request_util import save_login_log
 from ..models import EscortUser
 
 
@@ -59,87 +51,93 @@ class EscortUserCreateUpdateSerializer(CustomModelSerializer):
 
 
 class EscortUserViewSet(CustomModelViewSet):
-    """小程序用户管理接口"""
-    
+    """Web 端管理后台 - 用户列表（admin JWT）"""
+
     def get_authenticators(self):
-        from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
-        return [EscortUserAuthentication()]
-    
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        return [JWTAuthentication()]
+
     queryset = EscortUser.objects.all().order_by('-create_datetime')
     serializer_class = EscortUserSerializer
     create_serializer_class = EscortUserCreateUpdateSerializer
-    permission_classes = []  # 暂时禁用所有权限检查
-    extra_filter_class = []  # 禁用额外的过滤器，避免权限检查
     update_serializer_class = EscortUserCreateUpdateSerializer
-    filter_fields = ['hunter_status', ]
+    filter_fields = ['hunter_status']
     search_fields = ['nickname', 'openid', 'phone', 'real_name']
-    
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
-    def approve_hunter(self, request, *args, **kwargs):
-        """批准打手申请"""
-        instance = self.get_object()
-        if instance.hunter_status != EscortUser.HUNTER_PENDING:
-            return ErrorResponse(msg="只有审核中的申请才能批准")
-        
-        instance.hunter_status = EscortUser.HUNTER_APPROVED
-        instance.approve_time = timezone.now()
-        instance.save()
-        return SuccessResponse(msg="打手申请已批准")
-    
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
-    def reject_hunter(self, request, *args, **kwargs):
-        """拒绝打手申请"""
-        instance = self.get_object()
-        if instance.hunter_status != EscortUser.HUNTER_PENDING:
-            return ErrorResponse(msg="只有审核中的申请才能拒绝")
-        
-        reject_reason = request.data.get('reject_reason', '资料审核不通过，请重新提交')
-        instance.hunter_status = EscortUser.HUNTER_REJECTED
-        instance.reject_reason = reject_reason
-        instance.save()
-        return SuccessResponse(msg="打手申请已拒绝")
-    
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
-    def suspend_hunter(self, request, *args, **kwargs):
-        """暂停打手"""
-        instance = self.get_object()
-        if instance.hunter_status != EscortUser.HUNTER_APPROVED:
-            return ErrorResponse(msg="只有已通过的打手才能暂停")
-        
-        instance.hunter_status = EscortUser.HUNTER_SUSPENDED
-        instance.save()
-        return SuccessResponse(msg="打手已暂停")
-    
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
-    def activate_hunter(self, request, *args, **kwargs):
-        """激活打手"""
-        instance = self.get_object()
-        if instance.hunter_status != EscortUser.HUNTER_SUSPENDED:
-            return ErrorResponse(msg="只有已暂停的打手才能激活")
-        
-        instance.hunter_status = EscortUser.HUNTER_APPROVED
-        instance.save()
-        return SuccessResponse(msg="打手已激活")
-    
-    @action(methods=["GET"], detail=False, permission_classes=[IsAuthenticated])
-    def statistics(self, request, *args, **kwargs):
-        """用户统计"""
-        total_users = self.queryset.count()
-        pending_hunters = self.queryset.filter(hunter_status=EscortUser.HUNTER_PENDING).count()
-        approved_hunters = self.queryset.filter(hunter_status=EscortUser.HUNTER_APPROVED).count()
-        total_balance = self.queryset.aggregate(total=Sum('balance'))['total'] or 0
-        
-        return SuccessResponse(data={
-            'total_users': total_users,
-            'pending_hunters': pending_hunters,
-            'approved_hunters': approved_hunters,
-            'total_balance': float(total_balance)
-        })
+
+
+class AppUserViewSet(CustomModelViewSet):
+    """App 端 - 用户自身操作（escort JWT）"""
+
+    def get_authenticators(self):
+        from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
+        return [EscortUserAuthentication()]
+
+    permission_classes = []
+    extra_filter_class = []
+    queryset = EscortUser.objects.all()
+    serializer_class = EscortUserSerializer
+
+    def get_object(self):
+        openid = None
+        if hasattr(self.request, 'auth') and self.request.auth:
+            openid = self.request.auth.get('openid')
+        if not openid:
+            try:
+                openid = self.request.user.openid
+            except Exception:
+                pass
+        if not openid:
+            return None
+        return EscortUser.objects.get(openid=openid)
+
+    @action(methods=["GET"], detail=False)
+    def current(self, request, *args, **kwargs):
+        user = self.get_object()
+        if not user:
+            return ErrorResponse(msg="未登录")
+        serializer = EscortUserSerializer(user, context={'request': request})
+        return SuccessResponse(data=serializer.data)
+
+    @action(methods=["POST"], detail=False)
+    def update_info(self, request, *args, **kwargs):
+        user = self.get_object()
+        if not user:
+            return ErrorResponse(msg="未登录")
+
+        update_fields = []
+        nickname = request.data.get('nickname')
+        real_name = request.data.get('real_name')
+        avatar_url = request.data.get('avatar_url')
+        if nickname is not None:
+            user.nickname = nickname.strip()
+            update_fields.append('nickname')
+        if real_name is not None:
+            user.real_name = real_name.strip()
+            update_fields.append('real_name')
+        if avatar_url is not None:
+            user.avatar_url = avatar_url.strip()
+            update_fields.append('avatar_url')
+
+        if update_fields:
+            user.save(update_fields=update_fields)
+
+        serializer = EscortUserSerializer(user, context={'request': request})
+        return SuccessResponse(data=serializer.data, msg="用户信息更新成功")
+
+    @action(methods=["GET"], detail=False)
+    def balance(self, request, *args, **kwargs):
+        """获取当前用户余额"""
+        user = self.get_object()
+        if not user:
+            return ErrorResponse(msg="未登录")
+        return SuccessResponse(data={'balance': user.balance})
 
     @action(methods=["POST"], detail=False)
     def quit_hunter(self, request, *args, **kwargs):
         """用户主动注销达人身份"""
-        user = request.user
+        user = self.get_object()
+        if not user:
+            return ErrorResponse(msg="未登录")
         if user.hunter_status != EscortUser.HUNTER_APPROVED:
             return ErrorResponse(msg="只有认证打手才能注销身份")
 
@@ -150,19 +148,13 @@ class EscortUserViewSet(CustomModelViewSet):
         user.save()
         return SuccessResponse(msg="达人身份已注销")
 
-    @action(methods=["POST"], detail=False, permission_classes=[])
-    def wx_login(self, request, *args, **kwargs):
-        """
-        微信小程序登录接口
-        支持手机号一键登录和静默登录（无手机号）
-        ---
-        流程：
-        1. 前端调用 wx.login() 获取 code（必填）
-        2. 前端通过 getPhoneNumber 获取 phone_code（可选）
-        3. 后端用 wx_code 换取 openid
-        4. 后端用 phone_code 向微信换手机号（如有）
-        5. 创建/更新用户，签发 JWT
-        """
+
+class AppLoginView(APIView):
+    """App 端 - 微信登录"""
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
         wx_code = request.data.get('code', '').strip()
         phone_code = request.data.get('phone_code', '').strip() or None
         nickname = request.data.get('nickname', '').strip() or None
@@ -171,7 +163,6 @@ class EscortUserViewSet(CustomModelViewSet):
         if not wx_code:
             return ErrorResponse(msg="code 不能为空")
 
-        # ========== 1. 用 wx_code 换取 openid ==========
         wx_url = (
             f"https://api.weixin.qq.com/sns/jscode2session"
             f"?appid={settings.WECHAT_MINI_APPID}"
@@ -191,17 +182,13 @@ class EscortUserViewSet(CustomModelViewSet):
         openid = session_data['openid']
         unionid = session_data.get('unionid')
 
-        # ========== 2. 用 phone_code 换取手机号 ==========
-        # phone_code 有效期5分钟，仅能使用一次
         phone = None
         if phone_code:
             phone = self._decrypt_phone(phone_code)
-            # 解密失败不影响登录，仅记录日志
             if not phone:
                 import logging
                 logging.getLogger('escort').warning(f"手机号解密失败，phone_code={phone_code[:8]}...")
 
-        # ========== 3. 查询或创建用户 ==========
         user, created = EscortUser.objects.get_or_create(
             openid=openid,
             defaults={
@@ -226,7 +213,6 @@ class EscortUserViewSet(CustomModelViewSet):
             if update_fields:
                 user.save(update_fields=update_fields)
 
-        # ========== 4. 签发 JWT ==========
         refresh = RefreshToken.for_user(user)
         refresh['openid'] = openid
         refresh['user_id'] = user.id
@@ -240,16 +226,7 @@ class EscortUserViewSet(CustomModelViewSet):
         })
 
     def _decrypt_phone(self, phone_code):
-        """
-        向微信换取手机号
-        POST https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=ACCESS_TOKEN
-        body: { "code": phone_code }
-        返回: { "errcode": 0, "errmsg": "ok", "phone_info": { "phoneNumber": "xxx" } }
-        """
-        # 先获取 access_token（需要已发布的小程序才有效，开发阶段会失败）
-        # 这里直接用 phone_code 换手机号
         try:
-            # 获取 access_token（可缓存，实际项目建议加缓存逻辑）
             token_url = (
                 f"https://api.weixin.qq.com/cgi-bin/token"
                 f"?grant_type=client_credential"
@@ -262,7 +239,6 @@ class EscortUserViewSet(CustomModelViewSet):
             if not access_token:
                 return None
 
-            # 用 access_token + phone_code 换手机号
             decrypt_url = (
                 f"https://api.weixin.qq.com/wxa/business/getuserphonenumber"
                 f"?access_token={access_token}"
@@ -286,75 +262,6 @@ class EscortUserViewSet(CustomModelViewSet):
                 return None
         except Exception:
             return None
-
-    @action(methods=["GET"], detail=False, permission_classes=[IsAuthenticated])
-    def current(self, request, *args, **kwargs):
-        """
-        获取当前登录用户信息
-        JWT 认证后，通过 token 中存储的 openid 查找 EscortUser 并返回
-        """
-        openid = None
-        if hasattr(request, 'auth') and request.auth:
-            openid = request.auth.get('openid')
-        if not openid:
-            try:
-                openid = request.user.openid
-            except Exception:
-                pass
-        if not openid:
-            return ErrorResponse(msg="未登录")
-
-        try:
-            user = EscortUser.objects.get(openid=openid)
-        except EscortUser.DoesNotExist:
-            return ErrorResponse(msg="用户不存在")
-
-        serializer = EscortUserSerializer(user, context={'request': request})
-        return SuccessResponse(data=serializer.data)
-
-    @action(methods=["POST"], detail=False, permission_classes=[IsAuthenticated])
-    def update_info(self, request, *args, **kwargs):
-        """
-        更新当前登录用户信息
-        支持更新：nickname（昵称）、real_name（真实姓名）、avatar_url（头像）
-        """
-        openid = None
-        if hasattr(request, 'auth') and request.auth:
-            openid = request.auth.get('openid')
-        if not openid:
-            try:
-                openid = request.user.openid
-            except Exception:
-                pass
-        if not openid:
-            return ErrorResponse(msg="未登录")
-
-        try:
-            user = EscortUser.objects.get(openid=openid)
-        except EscortUser.DoesNotExist:
-            return ErrorResponse(msg="用户不存在")
-
-        # 获取需要更新的字段
-        nickname = request.data.get('nickname')
-        real_name = request.data.get('real_name')
-        avatar_url = request.data.get('avatar_url')
-
-        update_fields = []
-        if nickname is not None:
-            user.nickname = nickname.strip()
-            update_fields.append('nickname')
-        if real_name is not None:
-            user.real_name = real_name.strip()
-            update_fields.append('real_name')
-        if avatar_url is not None:
-            user.avatar_url = avatar_url.strip()
-            update_fields.append('avatar_url')
-
-        if update_fields:
-            user.save(update_fields=update_fields)
-
-        serializer = EscortUserSerializer(user, context={'request': request})
-        return SuccessResponse(data=serializer.data, msg="用户信息更新成功")
 
 
 class ApplyHunterView(APIView):

@@ -26,7 +26,24 @@ def event_stream(user_id):
 
 def sse_view(request):
     token = request.GET.get('token')
-    decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+    if not token or not token.strip():
+        return StreamingHttpResponse(
+            iter([f"data: 0\n\n"]),
+            content_type='text/event-stream'
+        )
+    try:
+        decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+    except jwt.exceptions.DecodeError:
+        return StreamingHttpResponse(
+            iter([f"data: 0\n\n"]),
+            content_type='text/event-stream'
+        )
+    # 跳过 escort JWT（包含 openid 字段，user_id 对应 EscortUser 而非 system.Users）
+    if 'openid' in decoded:
+        return StreamingHttpResponse(
+            iter([f"data: 0\n\n"]),
+            content_type='text/event-stream'
+        )
     user_id = decoded.get('user_id')
     response = StreamingHttpResponse(event_stream(user_id), content_type='text/event-stream')
     response['Cache-Control'] = 'no-cache'

@@ -130,7 +130,7 @@ def create_escort_menu():
     
     print(f"\n[DONE] 菜单创建完成！共创建/更新 {created_count} 个子菜单")
     print(f"[PATH] 前端访问路径: {root_menu.web_path}")
-    print(f"[API] API前缀: /api/escort/")
+    print(f"[API] API前缀: /api/escort/web/  或  /api/escort/app/")
 
 if __name__ == '__main__':
     create_escort_menu()

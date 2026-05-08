@@ -3,122 +3,122 @@
 // ================================================================
 
 // 后端接口地址（开发环境）
-// 请根据实际情况修改为实际后端地址
 const BASE_URL = 'http://127.0.0.1:18088'
 
 // 后端媒体文件地址（开发环境）
-// 请根据实际情况修改为实际后端地址，用于拼接图片等媒体文件的完整URL
 const MEDIA_URL = 'http://127.0.0.1:18088'
 
 // ================================================================
-// 认证相关 API
+// 认证相关 API（App 端）
 // ================================================================
 const AUTH_API = {
   /** 微信登录（code + phone_code） */
-  login: `${BASE_URL}/api/escort/escort_user/wx_login/`,
+  login: `${BASE_URL}/api/escort/app/login/`,
   /** 静默登录（仅 code） */
-  silentLogin: `${BASE_URL}/api/escort/escort_user/wx_login/`,
+  silentLogin: `${BASE_URL}/api/escort/app/login/`,
 }
 
 // ================================================================
-// 用户相关 API
+// 用户相关 API（App 端）
 // ================================================================
 const USER_API = {
   /** 获取当前用户信息 */
-  current: `${BASE_URL}/api/escort/escort_user/current/`,
+  current: `${BASE_URL}/api/escort/app/user/current/`,
   /** 更新用户信息 */
-  updateInfo: `${BASE_URL}/api/escort/escort_user/update_info/`,
+  updateInfo: `${BASE_URL}/api/escort/app/user/update_info/`,
   /** 申请成为陪玩达人 */
-  applyHunter: `${BASE_URL}/api/escort/apply_hunter/`,
+  applyHunter: `${BASE_URL}/api/escort/app/apply_hunter/`,
   /** 获取用户余额 */
-  balance: `${BASE_URL}/api/escort/escort_user/balance/`,
+  balance: `${BASE_URL}/api/escort/app/user/balance/`,
 }
 
 // ================================================================
-// 文件上传 API
+// 文件上传 API（App 端）
 // ================================================================
 const UPLOAD_API = {
   /** 通用文件上传 */
-  upload: `${BASE_URL}/api/escort/upload/`,
+  upload: `${BASE_URL}/api/escort/app/upload/`,
 }
 
 // ================================================================
-// 服务相关 API
+// 服务相关 API（App 端）
 // ================================================================
 const SERVICE_API = {
   /** 服务分类列表 */
-  categoryList: `${BASE_URL}/api/escort/service_category/`,
+  categoryList: `${BASE_URL}/api/escort/app/service_category/`,
   /** 服务详情列表 */
-  list: `${BASE_URL}/api/escort/service/`,
+  list: `${BASE_URL}/api/escort/app/service/`,
   /** 单个服务详情 */
-  detail: (id) => `${BASE_URL}/api/escort/service/${id}/`,
+  detail: (id) => `${BASE_URL}/api/escort/app/service/${id}/`,
 }
 
 // ================================================================
-// 订单相关 API
+// 订单相关 API（App 端）
 // ================================================================
 const ORDER_API = {
   /** 订单列表（客户） */
-  list: `${BASE_URL}/api/escort/order/`,
+  list: `${BASE_URL}/api/escort/app/order/`,
   /** 订单详情 */
-  detail: (id) => `${BASE_URL}/api/escort/order/${id}/`,
+  detail: (id) => `${BASE_URL}/api/escort/app/order/${id}/`,
   /** 创建订单 */
-  create: `${BASE_URL}/api/escort/order/`,
+  create: `${BASE_URL}/api/escort/app/order/`,
   /** 确认支付 */
-  confirmPayment: (id) => `${BASE_URL}/api/escort/order/${id}/confirm_payment/`,
+  confirmPayment: (id) => `${BASE_URL}/api/escort/app/order/${id}/confirm_payment/`,
   /** 查询支付状态 */
-  queryPaymentStatus: (orderNo) => `${BASE_URL}/api/escort/order/query_payment_status/?order_no=${orderNo}`,
+  queryPaymentStatus: (orderNo) => `${BASE_URL}/api/escort/app/order/query_payment_status/?order_no=${orderNo}`,
   /** 取消订单 */
-  cancel: (id) => `${BASE_URL}/api/escort/order/${id}/cancel/`,
+  cancel: (id) => `${BASE_URL}/api/escort/app/order/${id}/cancel/`,
   /** 确认完成（客户最终确认，分配收益） */
-  confirmComplete: (id) => `${BASE_URL}/api/escort/order/${id}/confirm_complete/`,
+  confirmComplete: (id) => `${BASE_URL}/api/escort/app/order/${id}/confirm_complete/`,
   /** 客户确认服务完成（中间步骤） */
-  confirmServiceDone: (id) => `${BASE_URL}/api/escort/order/${id}/confirm_service_done/`,
+  confirmServiceDone: (id) => `${BASE_URL}/api/escort/app/order/${id}/confirm_service_done/`,
   /** 评价订单 */
-  review: (id) => `${BASE_URL}/api/escort/order/${id}/review/`,
+  review: (id) => `${BASE_URL}/api/escort/app/order/${id}/review/`,
   /** 打手接单 */
-  accept: (id) => `${BASE_URL}/api/escort/order/${id}/accept/`,
+  accept: (id) => `${BASE_URL}/api/escort/app/order/${id}/accept/`,
   /** 打手完成服务（开始打单） */
-  hunterComplete: (id) => `${BASE_URL}/api/escort/order/${id}/hunter_complete/`,
+  hunterComplete: (id) => `${BASE_URL}/api/escort/app/order/${id}/hunter_complete/`,
   /** 邀请搭子加入多人订单 */
-  inviteBuddy: (id) => `${BASE_URL}/api/escort/order/${id}/invite_buddy/`,
+  inviteBuddy: (id) => `${BASE_URL}/api/escort/app/order/${id}/invite_buddy/`,
   /** 打手获取已接订单列表 */
-  my: `${BASE_URL}/api/escort/order/my/`,
+  my: `${BASE_URL}/api/escort/app/order/my/`,
+  /** 客户获取自己下过的订单列表 */
+  customerOrders: `${BASE_URL}/api/escort/app/order/customer_orders/`,
   /** 微信支付统一下单 */
-  wxPay: `${BASE_URL}/api/escort/order/wx_pay/`,
+  wxPay: `${BASE_URL}/api/escort/app/order/wx_pay/`,
 }
 
 // ================================================================
-// 提现相关 API
+// 提现相关 API（App 端）
 // ================================================================
 const WITHDRAWAL_API = {
   /** 提现记录列表 */
-  list: `${BASE_URL}/api/escort/withdrawal/`,
+  list: `${BASE_URL}/api/escort/app/withdrawal/`,
   /** 申请提现 */
-  apply: `${BASE_URL}/api/escort/withdrawal/apply/`,
+  apply: `${BASE_URL}/api/escort/app/withdrawal/apply/`,
 }
 
 // ================================================================
-// 搭子相关 API
+// 搭子相关 API（App 端）
 // ================================================================
 const BUDDY_API = {
   /** 我的搭子列表 */
-  my: `${BASE_URL}/api/escort/buddy/my/`,
+  my: `${BASE_URL}/api/escort/app/buddy/my/`,
   /** 生成邀请码 */
-  generateCode: `${BASE_URL}/api/escort/buddy/generate_code/`,
+  generateCode: `${BASE_URL}/api/escort/app/buddy/generate_code/`,
   /** 绑定搭子 */
-  bind: `${BASE_URL}/api/escort/buddy/bind/`,
+  bind: `${BASE_URL}/api/escort/app/buddy/bind/`,
   /** 删除搭子 */
-  removeBuddy: (id) => `${BASE_URL}/api/escort/buddy/${id}/remove_buddy/`,
+  removeBuddy: (id) => `${BASE_URL}/api/escort/app/buddy/${id}/remove_buddy/`,
   /** 注销达人身份 */
-  quitHunter: `${BASE_URL}/api/escort/escort_user/quit_hunter/`,
+  quitHunter: `${BASE_URL}/api/escort/app/user/quit_hunter/`,
 }
 
 // ================================================================
-// Banner相关 API
+// Banner相关 API（App 端）
 // ================================================================
 const BANNER_API = {
-  list: `${BASE_URL}/api/escort/banner/`,
+  list: `${BASE_URL}/api/escort/app/banner/`,
 }
 
 export {

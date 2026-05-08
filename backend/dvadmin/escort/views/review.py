@@ -60,13 +60,14 @@ class OrderReviewViewSet(CustomModelViewSet):
 
     def get_authenticators(self):
         from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
-        return [EscortUserAuthentication()]
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        return [EscortUserAuthentication(), JWTAuthentication()]
 
     queryset = OrderReview.objects.all().select_related('order', 'customer')
     serializer_class = OrderReviewSerializer
     filter_fields = ['order', 'customer', 'rating']
     search_fields = ['order__order_no', 'customer__nickname', 'content']
-    permission_classes = [IsAuthenticated]  # 使用简单认证
+    permission_classes = []
     
     def get_queryset(self):
         queryset = super().get_queryset()
