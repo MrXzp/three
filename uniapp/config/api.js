@@ -103,6 +103,20 @@ const WITHDRAWAL_API = {
 }
 
 // ================================================================
+// 退款相关 API（App 端）
+// ================================================================
+const REFUND_API = {
+  /** 提交退款申请 */
+  apply: `${BASE_URL}/api/escort/app/refund/apply/`,
+  /** 我的退款记录列表 */
+  my: `${BASE_URL}/api/escort/app/refund/my/`,
+  /** 查询退款详情 */
+  detail: (id) => `${BASE_URL}/api/escort/app/refund/${id}/`,
+  /** 检查订单退款状态 */
+  check: (id) => `${BASE_URL}/api/escort/app/refund/${id}/check/`,
+}
+
+// ================================================================
 // 搭子相关 API（App 端）
 // ================================================================
 const BUDDY_API = {
@@ -134,6 +148,7 @@ export {
   SERVICE_API,
   ORDER_API,
   WITHDRAWAL_API,
+  REFUND_API,
   BUDDY_API,
 }
 
@@ -146,6 +161,7 @@ export default {
   SERVICE_API,
   ORDER_API,
   WITHDRAWAL_API,
+  REFUND_API,
   BANNER_API,
   BUDDY_API,
 }

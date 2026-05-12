@@ -50,6 +50,22 @@
 			}
 		},
 		{
+			"path": "pages/user/order/refund",
+			"style": {
+				"navigationBarTitleText": "申请退款",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/user/order/refund-list",
+			"style": {
+				"navigationBarTitleText": "退款记录",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
 			"path": "pages/user/service/detail",
 			"style": {
 				"navigationBarTitleText": "服务详情",

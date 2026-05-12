@@ -127,6 +127,7 @@ const ORDER_STATUS = {
   6: { label: '已完成', color: '#52c41a', type: 'success' },
   7: { label: '已取消', color: '#999', type: 'info' },
   8: { label: '退款中', color: '#ff4d4f', type: 'error' },
+  9: { label: '已退款', color: '#52c41a', type: 'success' },
 }
 
 function getOrderStatusInfo(status) {

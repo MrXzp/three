@@ -29,6 +29,7 @@ from .views.withdrawal import WithdrawalViewSet
 from .views.buddy import BuddyRelationViewSet
 from .views.buddy_admin import BuddyViewSet   # Web 端：打手管理（审批/暂停/激活/撤销）
 from .views.review import OrderReviewViewSet
+from .views.refund import RefundRequestViewSet
 from .views.chat import ChatMessageViewSet, WebAdminChatMessageViewSet
 
 
@@ -44,6 +45,7 @@ web_router.register(r'order', OrderViewSet, basename='web-order')
 web_router.register(r'withdrawal', WithdrawalViewSet, basename='web-withdrawal')
 web_router.register(r'buddy', BuddyRelationViewSet, basename='web-buddy')
 web_router.register(r'review', OrderReviewViewSet, basename='web-review')
+web_router.register(r'refund', RefundRequestViewSet, basename='web-refund')
 
 web_urlpatterns = [
     path('web/', include(web_router.urls)),
@@ -59,6 +61,7 @@ app_router.register(r'order', OrderViewSet, basename='app-order')
 app_router.register(r'withdrawal', WithdrawalViewSet, basename='app-withdrawal')
 app_router.register(r'buddy', BuddyRelationViewSet, basename='app-buddy')
 app_router.register(r'review', OrderReviewViewSet, basename='app-review')
+app_router.register(r'refund', RefundRequestViewSet, basename='app-refund')
 
 app_urlpatterns = [
     path('app/login/', AppLoginView.as_view(), name='app-login'),

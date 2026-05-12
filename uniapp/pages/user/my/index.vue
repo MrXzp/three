@@ -39,6 +39,11 @@
       </view>
 
       <view class="menu-list">
+        <view class="menu-item" @click="goRefundList">
+          <text class="menu-icon">💰</text>
+          <text class="menu-text">退款记录</text>
+          <text class="menu-arrow">›</text>
+        </view>
         <view class="menu-item" @click="goApplyHunter">
           <text class="menu-icon">⚔️</text>
           <text class="menu-text">{{ getHunterBtnText() }}</text>
@@ -248,6 +253,11 @@ export default {
     goWithdraw() {
       this.checkLogin()
       uni.navigateTo({ url: '/pages/user/my/withdraw' })
+    },
+
+    goRefundList() {
+      this.checkLogin()
+      uni.navigateTo({ url: '/pages/user/order/refund-list' })
     },
 
     goApplyHunter() {

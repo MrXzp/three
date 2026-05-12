@@ -56,6 +56,17 @@
             class="btn-chat"
             @click="openChatDrawer"
           >联系打手</text>
+          <!-- 申请退款（可退款状态） -->
+          <text
+            v-if="canApplyRefund"
+            class="btn-refund"
+            @click="goRefund"
+          >申请退款</text>
+          <!-- 退款状态（退款中/已退款） -->
+          <text
+            v-if="order.status === 9 || order.status === 8"
+            class="btn-refund-status"
+          >{{ order.status === 9 ? '退款中' : '退款' }}：¥{{ order.total_amount }}</text>
         </view>
       </view>
       <view style="height: 40rpx;"></view>
@@ -66,7 +77,7 @@
 </template>
 
 <script>
-import { ORDER_API } from '@/config/api.js'
+import { ORDER_API, REFUND_API } from '@/config/api.js'
 import { get, post } from '@/utils/request.js'
 import { showToast, getImageUrl, formatTime } from '@/utils/common.js'
 import chatDrawer from '@/components/chat-drawer/chat-drawer.vue'
@@ -82,10 +93,21 @@ export default {
       myUserId: null,
       myNickname: '',
       myAvatar: '',
+      refundStatus: null, // 退款申请状态
     }
   },
 
   computed: {
+    // 可申请退款的订单状态：已支付但未完成
+    canApplyRefund() {
+      if (!this.order) return false
+      const refundableStatuses = [1, 2, 3, 4, 5] // 待接单、已接单、等待搭子、服务中、待确认
+      if (!refundableStatuses.includes(this.order.status)) return false
+      // 如果已经有退款申请，不可再申请
+      if (this.refundStatus !== null) return false
+      return true
+    },
+
     countdownText() {
       const s = this.remainingSeconds
       if (s <= 0) return '00:00'
@@ -170,7 +192,32 @@ export default {
         if (this.order && this.order.status === 0) {
           this.startCountdown()
         }
+        // 加载退款状态
+        await this.loadRefundStatus()
       } finally { this.loading = false }
+    },
+
+    // 加载退款状态
+    async loadRefundStatus() {
+      if (!this.order) return
+      try {
+        // 查询该订单是否已有退款申请
+        const res = await get(`${REFUND_API.my}?order=${this.orderId}`)
+        if (res.results && res.results.length > 0) {
+          // 找到该订单的退款记录
+          const refund = res.results.find(r => r.order === this.orderId || r.order?.id === this.orderId)
+          if (refund) {
+            this.refundStatus = refund.status
+          }
+        } else if (res.data && res.data.length > 0) {
+          const refund = res.data.find(r => r.order === this.orderId || r.order?.id === this.orderId)
+          if (refund) {
+            this.refundStatus = refund.status
+          }
+        }
+      } catch (e) {
+        console.log('[ORDER] 查询退款状态失败:', e)
+      }
     },
 
     async handlePay() {
@@ -265,6 +312,13 @@ export default {
 
     goReview() { uni.navigateTo({ url: `/pages/user/order/review?id=${this.orderId}` }) },
 
+    // 申请退款
+    goRefund() {
+      uni.navigateTo({
+        url: `/pages/user/order/refund?id=${this.orderId}&amount=${this.order.total_amount}`,
+      })
+    },
+
     getStatusText(s) {
       const map = {
         0: '待支付',
@@ -275,7 +329,9 @@ export default {
         5: '待确认',
         6: '已完成',
         7: '已评价',
-        8: '已取消'
+        8: '已取消',
+        9: '退款中',
+        10: '已退款',
       }
       // 已取消订单，根据取消原因显示不同文案
       if (s === 8 && this.order && this.order.cancel_reason === 'timeout') {
@@ -369,5 +425,16 @@ export default {
   background: linear-gradient(135deg, #00B4D8, #0097B2);
   border-radius: 44rpx; font-size: 30rpx; font-weight: 600; color: #FFFFFF;
   box-shadow: 0 4rpx 16rpx rgba(0, 180, 216, 0.3); width: 100%; box-sizing: border-box; margin-top: 16rpx;
+}
+.btn-refund {
+  display: block; height: 88rpx; line-height: 88rpx; text-align: center;
+  background: rgba(255, 77, 79, 0.1); border: 1rpx solid rgba(255, 77, 79, 0.3);
+  border-radius: 44rpx; font-size: 30rpx; font-weight: 600; color: #FF4D4F;
+  width: 100%; box-sizing: border-box; margin-top: 16rpx;
+}
+.btn-refund-status {
+  display: block; height: 80rpx; line-height: 80rpx; text-align: center;
+  background: rgba(255, 77, 79, 0.05); border: 1rpx solid rgba(255, 77, 79, 0.2);
+  border-radius: 40rpx; font-size: 28rpx; color: #FF4D4F; width: 100%; box-sizing: border-box; margin-top: 16rpx;
 }
 </style>

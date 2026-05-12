@@ -259,7 +259,9 @@ class Order(CoreModel):
     STATUS_COMPLETED = 6            # 已完成
     STATUS_REVIEWED = 7             # 已评价
     STATUS_CANCELLED = 8            # 已取消
-    
+    STATUS_REFUNDING = 9            # 退款中
+    STATUS_REFUNDED = 10            # 已退款
+
     STATUS_CHOICES = [
         (STATUS_PENDING_PAYMENT, '待支付'),
         (STATUS_PENDING_ACCEPT, '待接单'),
@@ -270,6 +272,8 @@ class Order(CoreModel):
         (STATUS_COMPLETED, '已完成'),
         (STATUS_REVIEWED, '已评价'),
         (STATUS_CANCELLED, '已取消'),
+        (STATUS_REFUNDING, '退款中'),
+        (STATUS_REFUNDED, '已退款'),
     ]
     
     order_no = models.CharField(max_length=50, unique=True, verbose_name='订单编号', help_text='订单唯一编号')
@@ -459,3 +463,123 @@ class OrderReview(CoreModel):
 
     def __str__(self):
         return f"{self.order.order_no} - {self.rating}分"
+
+
+class RefundRequest(CoreModel):
+    """退款申请"""
+
+    # 退款状态
+    STATUS_PENDING = 0      # 待审核
+    STATUS_APPROVED = 1     # 已通过（待退款）
+    STATUS_REJECTED = 2     # 已拒绝
+    STATUS_REFUNDING = 3    # 退款中
+    STATUS_COMPLETED = 4    # 退款完成
+    STATUS_FAILED = 5       # 退款失败
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, '待审核'),
+        (STATUS_APPROVED, '已通过（待退款）'),
+        (STATUS_REJECTED, '已拒绝'),
+        (STATUS_REFUNDING, '退款中'),
+        (STATUS_COMPLETED, '退款完成'),
+        (STATUS_FAILED, '退款失败'),
+    ]
+
+    # 退款原因
+    REASON_USER_CANCEL = 'user_cancel'       # 用户取消
+    REASON_SERVICE_ISSUE = 'service_issue'  # 服务问题
+    REASON_OTHER = 'other'                  # 其他原因
+
+    REASON_CHOICES = [
+        (REASON_USER_CANCEL, '用户取消'),
+        (REASON_SERVICE_ISSUE, '服务问题'),
+        (REASON_OTHER, '其他原因'),
+    ]
+
+    order = models.OneToOneField(
+        Order, on_delete=models.CASCADE,
+        related_name='refund_request',
+        verbose_name='订单',
+        help_text='关联的订单'
+    )
+    customer = models.ForeignKey(
+        EscortUser, on_delete=models.CASCADE,
+        related_name='refund_requests',
+        verbose_name='申请人',
+        help_text='申请退款的客户'
+    )
+
+    # 退款金额
+    refund_amount = models.DecimalField(
+        max_digits=10, decimal_places=2,
+        verbose_name='申请退款金额',
+        help_text='客户申请的退款金额'
+    )
+    actual_refund_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0,
+        verbose_name='实际退款金额',
+        help_text='实际退款金额（可能与申请金额不同）'
+    )
+
+    # 退款原因
+    reason_type = models.CharField(
+        max_length=20, choices=REASON_CHOICES,
+        default=REASON_USER_CANCEL,
+        verbose_name='退款原因类型',
+        help_text='退款原因类型'
+    )
+    reason_detail = models.TextField(
+        blank=True, null=True,
+        verbose_name='退款详细说明',
+        help_text='客户填写的退款详细说明'
+    )
+
+    # 退款状态
+    status = models.IntegerField(
+        choices=STATUS_CHOICES, default=STATUS_PENDING,
+        verbose_name='退款状态',
+        help_text='退款申请状态'
+    )
+
+    # 微信退款相关
+    refund_no = models.CharField(
+        max_length=100, blank=True, null=True,
+        verbose_name='微信退款单号',
+        help_text='微信退款单号'
+    )
+    refund_time = models.DateTimeField(
+        blank=True, null=True,
+        verbose_name='退款完成时间',
+        help_text='微信退款完成时间'
+    )
+
+    # 审核信息
+    reviewer_id = models.IntegerField(
+        blank=True, null=True,
+        verbose_name='审核人ID',
+        help_text='审核退款的管理员ID'
+    )
+    reviewer_name = models.CharField(
+        max_length=100, blank=True, null=True,
+        verbose_name='审核人',
+        help_text='审核退款的管理员名称'
+    )
+    review_notes = models.TextField(
+        blank=True, null=True,
+        verbose_name='审核备注',
+        help_text='审核备注信息'
+    )
+    review_time = models.DateTimeField(
+        blank=True, null=True,
+        verbose_name='审核时间',
+        help_text='审核时间'
+    )
+
+    class Meta:
+        db_table = table_prefix + "escort_refund_request"
+        verbose_name = '退款申请'
+        verbose_name_plural = verbose_name
+        ordering = ('-create_datetime',)
+
+    def __str__(self):
+        return f"{self.order.order_no} - ¥{self.refund_amount} - {self.get_status_display()}"
