@@ -114,9 +114,25 @@
 			}
 		},
 		{
+			"path": "pages/handler/order/hall_detail",
+			"style": {
+				"navigationBarTitleText": "订单详情",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
 			"path": "pages/handler/my/index",
 			"style": {
 				"navigationBarTitleText": "我的",
+				"navigationStyle": "custom",
+				"navigationBarColor": "#050814"
+			}
+		},
+		{
+			"path": "pages/chat/index",
+			"style": {
+				"navigationBarTitleText": "在线沟通",
 				"navigationStyle": "custom",
 				"navigationBarColor": "#050814"
 			}

@@ -46,7 +46,7 @@
         <text class="empty-text">暂无可接订单</text>
       </view>
 
-      <view v-for="order in orders" :key="order.id" class="order-card">
+      <view v-for="order in orders" :key="order.id" class="order-card" @click="goDetail(order)">
         <view class="order-header">
           <text class="order-no">{{ order.order_no }}</text>
           <view class="status-badge">{{ order.status_display || '待接单' }}</view>
@@ -63,8 +63,8 @@
           <text class="info-item">模式：{{ order.game_mode }}</text>
           <text class="info-item">需求：{{ order.required_hunters || 1 }}人</text>
         </view>
-        <view class="order-actions">
-          <view class="accept-btn" @click="handleAccept(order.id)">立即接单</view>
+        <view class="order-tip">
+          <text class="tip-text">点击查看详情 &gt;</text>
         </view>
       </view>
 
@@ -84,8 +84,8 @@
 import customNavbar from '@/components/custom-navbar/custom-navbar.vue'
 import customTabbar from '@/components/custom-tabbar/custom-tabbar.vue'
 import { ORDER_API, USER_API } from '@/config/api.js'
-import { get, post } from '@/utils/request.js'
-import { showToast, showModal } from '@/utils/common.js'
+import { get } from '@/utils/request.js'
+import { showToast } from '@/utils/common.js'
 
 export default {
   components: { customNavbar, customTabbar },
@@ -106,6 +106,7 @@ export default {
       filters: [
         { label: '全部可接', value: 0 },
         { label: '待接单', value: 1 },
+        { label: '已接单', value: 2 },
       ],
     }
   },
@@ -152,18 +153,22 @@ export default {
       if (reset) { this.page = 1; this.noMore = false }
       this.loading = true
       try {
-        const params = {
-          status: 1,
-          page: this.page,
-          page_size: this.PAGE_SIZE,
-        }
-        const res = await get(ORDER_API.list, params)
         let results = []
-        if (Array.isArray(res)) {
-          results = res
-        } else if (res && res.results) {
-          results = res.results
-          this.noMore = !res.next
+        if (this.currentFilter === 2) {
+          // 已接单：使用打手已接订单接口
+          const res = await get(ORDER_API.my, { page: this.page, page_size: this.PAGE_SIZE })
+          results = Array.isArray(res) ? res : (res && res.results) || []
+          this.noMore = !res || !res.next
+        } else {
+          // 大厅订单列表
+          const params = {
+            status: this.currentFilter === 0 ? undefined : 1,
+            page: this.page,
+            page_size: this.PAGE_SIZE,
+          }
+          const res = await get(ORDER_API.list, params)
+          results = Array.isArray(res) ? res : (res && res.results) || []
+          this.noMore = !res || !res.next
         }
         this.orders = reset ? results : this.orders.concat(results)
         if (!reset && results.length > 0) this.page++
@@ -184,22 +189,14 @@ export default {
       if (!this.noMore) this.fetchOrders(false)
     },
 
-    async handleAccept(id) {
-      if (!this.isHunterApproved) {
-        showToast('您还不是认证打手，请先申请', 'none')
-        return
-      }
-      const res = await showModal({
-        title: '确认接单',
-        content: '确定要接下这个订单吗？',
-      })
-      if (!res.confirm) return
-      try {
-        await post(ORDER_API.accept(id))
-        showToast('接单成功', 'success')
-        this.fetchOrders(true)
-      } catch (e) {
-        // 错误已在 request 中处理
+    goDetail(order) {
+      const id = typeof order === 'object' ? order.id : order
+      if (this.currentFilter === 2) {
+        // 已接单 → 已有详情页
+        uni.navigateTo({ url: `/pages/handler/order/detail?id=${id}` })
+      } else {
+        // 大厅待接单 → 新的详情页
+        uni.navigateTo({ url: `/pages/handler/order/hall_detail?id=${id}` })
       }
     },
   },
@@ -321,20 +318,12 @@ export default {
 .order-price { font-size: 32rpx; font-weight: 700; color: #FF3366; }
 .order-info { display: flex; gap: 24rpx; margin-bottom: 8rpx; }
 .info-item { font-size: 24rpx; color: #666666; }
-.order-actions {
+.order-tip {
   display: flex;
   justify-content: flex-end;
-  padding-top: 12rpx;
-  border-top: 1rpx solid #F0F0F0;
+  padding-top: 8rpx;
 }
-.accept-btn {
-  padding: 12rpx 40rpx;
-  background: linear-gradient(135deg, #00B4D8, #00C853);
-  color: #FFFFFF;
-  font-size: 28rpx;
-  font-weight: 600;
-  border-radius: 40rpx;
-}
+.tip-text { font-size: 22rpx; color: #00B4D8; }
 
 .load-more, .no-more { text-align: center; padding: 30rpx; }
 .load-more-text { font-size: 24rpx; color: #999999; }

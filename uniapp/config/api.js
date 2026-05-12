@@ -86,6 +86,10 @@ const ORDER_API = {
   customerOrders: `${BASE_URL}/api/escort/app/order/customer_orders/`,
   /** 微信支付统一下单 */
   wxPay: `${BASE_URL}/api/escort/app/order/wx_pay/`,
+  /** 聊天消息列表（游标分页） */
+  chatMessages: (orderId) => `${BASE_URL}/api/escort/app/order/${orderId}/messages/`,
+  /** 发送聊天消息 */
+  chatSend: (orderId) => `${BASE_URL}/api/escort/app/order/${orderId}/messages/send/`,
 }
 
 // ================================================================

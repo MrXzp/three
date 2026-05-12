@@ -29,6 +29,7 @@ from .views.withdrawal import WithdrawalViewSet
 from .views.buddy import BuddyRelationViewSet
 from .views.buddy_admin import BuddyViewSet   # Web 端：打手管理（审批/暂停/激活/撤销）
 from .views.review import OrderReviewViewSet
+from .views.chat import ChatMessageViewSet, WebAdminChatMessageViewSet
 
 
 # ---------- Web 端路由（admin JWT） ----------
@@ -46,6 +47,7 @@ web_router.register(r'review', OrderReviewViewSet, basename='web-review')
 
 web_urlpatterns = [
     path('web/', include(web_router.urls)),
+    path('web/order/<int:order_id>/messages/', WebAdminChatMessageViewSet.as_view(), name='web-chat-messages'),
 ]
 
 # ---------- App 端路由（escort JWT） ----------
@@ -62,6 +64,11 @@ app_urlpatterns = [
     path('app/login/', AppLoginView.as_view(), name='app-login'),
     path('app/apply_hunter/', ApplyHunterView.as_view(), name='app-apply-hunter'),
     path('app/upload/', FileUploadView.as_view(), name='app-upload'),
+    path('app/order/<int:order_id>/messages/', ChatMessageViewSet.as_view({
+        'get': 'list', 'post': 'send'
+    }), name='app-chat-messages'),
+    path('app/order/<int:order_id>/messages/send/', ChatMessageViewSet.as_view({'post': 'send'}), name='app-chat-send'),
+    path('app/order/<int:order_id>/messages/read/', ChatMessageViewSet.as_view({'post': 'read'}), name='app-chat-read'),
     path('app/', include(app_router.urls)),
 ]
 

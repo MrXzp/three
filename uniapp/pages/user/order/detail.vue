@@ -50,6 +50,12 @@
           <text v-if="order.status === 4" class="btn-primary" @click="confirmServiceDone">确认服务完成</text>
           <text v-if="order.status === 5" class="btn-primary" @click="confirmComplete">最终确认并结算</text>
           <text v-if="order.status === 6" class="btn-review" @click="goReview">去评价</text>
+          <!-- 联系打手（活跃订单可见） -->
+          <text
+            v-if="[1,2,3,4,5].includes(order.status)"
+            class="btn-chat"
+            @click="openChatDrawer"
+          >联系打手</text>
         </view>
       </view>
       <view style="height: 40rpx;"></view>
@@ -63,14 +69,19 @@
 import { ORDER_API } from '@/config/api.js'
 import { get, post } from '@/utils/request.js'
 import { showToast, getImageUrl, formatTime } from '@/utils/common.js'
+import chatDrawer from '@/components/chat-drawer/chat-drawer.vue'
 
 export default {
+  components: { chatDrawer },
   data() {
     return {
       tabbarHeight: 180,
       orderId: null, order: null, loading: false, refreshing: false,
       remainingSeconds: 0,
       countdownTimer: null,
+      myUserId: null,
+      myNickname: '',
+      myAvatar: '',
     }
   },
 
@@ -87,7 +98,12 @@ export default {
   onLoad(opts) {
     console.log('[ORDER] onLoad, opts:', opts)
     this.orderId = opts.id
+    this.loadUserInfo()
     this.loadOrder()
+  },
+
+  onShow() {
+    this.loadUserInfo()
   },
 
   onUnshow() {
@@ -101,6 +117,21 @@ export default {
   methods: {
     getImageUrl,
     formatTime,
+
+    openChatDrawer() {
+      uni.navigateTo({
+        url: `/pages/chat/index?order_id=${this.orderId}&order_no=${this.order ? this.order.order_no : ''}`,
+      })
+    },
+
+    async loadUserInfo() {
+      try {
+        const stored = uni.getStorageSync('escort_user_info') || {}
+        this.myUserId = stored.id
+        this.myNickname = stored.nickname || ''
+        this.myAvatar = stored.avatar_url || ''
+      } catch (e) {}
+    },
 
     async onRefresh() {
       this.refreshing = true
@@ -332,5 +363,11 @@ export default {
   height: 80rpx; line-height: 80rpx; text-align: center;
   background: rgba(0, 180, 216, 0.1); border: 1rpx solid rgba(0, 180, 216, 0.3);
   border-radius: 40rpx; font-size: 28rpx; color: #00B4D8; width: 100%; box-sizing: border-box;
+}
+.btn-chat {
+  display: block; height: 88rpx; line-height: 88rpx; text-align: center;
+  background: linear-gradient(135deg, #00B4D8, #0097B2);
+  border-radius: 44rpx; font-size: 30rpx; font-weight: 600; color: #FFFFFF;
+  box-shadow: 0 4rpx 16rpx rgba(0, 180, 216, 0.3); width: 100%; box-sizing: border-box; margin-top: 16rpx;
 }
 </style>

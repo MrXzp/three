@@ -84,6 +84,13 @@
 
           <!-- 已完成/已评价 -->
           <text v-if="order.status === 6 || order.status === 7" class="btn-disabled">订单已完成</text>
+
+          <!-- 联系客户（活跃订单可见） -->
+          <text
+            v-if="[1,2,3,4,5].includes(order.status)"
+            class="btn-chat"
+            @click="goToChat"
+          >联系老板</text>
         </view>
       </view>
       <view style="height: 40rpx;"></view>
@@ -116,7 +123,7 @@
 </template>
 
 <script>
-import { ORDER_API, BUDDY_API } from '@/config/api.js'
+import { ORDER_API, BUDDY_API, USER_API } from '@/config/api.js'
 import { get, post } from '@/utils/request.js'
 import { showToast, getImageUrl } from '@/utils/common.js'
 
@@ -126,6 +133,7 @@ export default {
       tabbarHeight: 180,
       orderId: null, order: null, loading: false,
       showBuddyModal: false, buddies: [], loadingBuddies: false,
+      userInfo: null,
     }
   },
 
@@ -146,10 +154,12 @@ export default {
 
   onLoad(opts) {
     this.orderId = opts.id
+    this.loadUserInfo()
     this.loadOrder()
   },
 
   onShow() {
+    this.loadUserInfo()
     this.loadOrder()
   },
 
@@ -157,6 +167,19 @@ export default {
     getImageUrl,
 
     goBack() { uni.navigateBack() },
+
+    goToChat() {
+      uni.navigateTo({
+        url: `/pages/chat/index?order_id=${this.orderId}&order_no=${this.order ? this.order.order_no : ''}`,
+      })
+    },
+
+    async loadUserInfo() {
+      try {
+        const res = await get(USER_API.current)
+        this.userInfo = res || {}
+      } catch (e) {}
+    },
 
     async loadOrder() {
       this.loading = true
@@ -307,6 +330,13 @@ export default {
 .btn-disabled {
   display: block; height: 96rpx; line-height: 96rpx; text-align: center;
   background: #F0F0F0; border-radius: 48rpx; font-size: 32rpx; color: #999999;
+}
+
+.btn-chat {
+  display: block; height: 88rpx; line-height: 88rpx; text-align: center;
+  background: linear-gradient(135deg, #00B4D8, #0097B2);
+  border-radius: 44rpx; font-size: 30rpx; font-weight: 600; color: #FFFFFF;
+  box-shadow: 0 4rpx 16rpx rgba(0, 180, 216, 0.3); width: 100%; box-sizing: border-box;
 }
 
 .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center; }

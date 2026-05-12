@@ -390,24 +390,72 @@ class BuddyRelation(CoreModel):
         return f"{self.user_a.nickname} ↔ {self.user_b.nickname}"
 
 
+class ChatMessage(CoreModel):
+    """订单聊天消息"""
+
+    # 消息类型
+    TYPE_TEXT = 1
+    TYPE_SYSTEM = 2
+    TYPE_IMAGE = 3
+
+    TYPE_CHOICES = [
+        (TYPE_TEXT, '文本消息'),
+        (TYPE_SYSTEM, '系统消息'),
+        (TYPE_IMAGE, '图片消息'),
+    ]
+
+    order = models.ForeignKey(
+        Order, on_delete=models.CASCADE,
+        related_name='chat_messages',
+        verbose_name='订单',
+        help_text='所属订单'
+    )
+    sender = models.ForeignKey(
+        EscortUser, on_delete=models.CASCADE,
+        verbose_name='发送者',
+        help_text='消息发送者'
+    )
+    sender_type = models.CharField(
+        max_length=20,
+        verbose_name='发送者身份',
+        help_text='customer=客户, hunter=打手, system=系统'
+    )
+    message_type = models.IntegerField(
+        choices=TYPE_CHOICES, default=TYPE_TEXT,
+        verbose_name='消息类型',
+        help_text='文本/系统/图片'
+    )
+    content = models.TextField(verbose_name='消息内容', help_text='消息内容')
+    image_url = models.CharField(max_length=500, blank=True, null=True, verbose_name='图片URL', help_text='图片消息URL')
+
+    class Meta:
+        db_table = table_prefix + "escort_chat_message"
+        verbose_name = '订单聊天消息'
+        verbose_name_plural = verbose_name
+        ordering = ('create_datetime',)
+
+    def __str__(self):
+        return f"{self.order.order_no} - {self.sender_type}:{self.content[:20]}"
+
+
 class OrderReview(CoreModel):
     """订单评价"""
     order = models.OneToOneField(Order, on_delete=models.CASCADE, verbose_name='订单', help_text='被评价的订单')
     customer = models.ForeignKey(EscortUser, on_delete=models.CASCADE, related_name='given_reviews', verbose_name='评价人', help_text='发表评价的客户')
-    
+
     # 评价内容
     rating = models.IntegerField(verbose_name='评分', help_text='评分（1-5分）')
     content = models.TextField(verbose_name='评价内容', help_text='评价详细内容')
     is_anonymous = models.BooleanField(default=False, verbose_name='是否匿名', help_text='是否匿名评价')
-    
+
     # 回复
     reply_content = models.TextField(blank=True, null=True, verbose_name='商家回复', help_text='商家回复内容')
     reply_time = models.DateTimeField(blank=True, null=True, verbose_name='回复时间', help_text='回复时间')
-    
+
     class Meta:
         db_table = table_prefix + "escort_order_review"
         verbose_name = '订单评价'
         verbose_name_plural = verbose_name
-    
+
     def __str__(self):
         return f"{self.order.order_no} - {self.rating}分"

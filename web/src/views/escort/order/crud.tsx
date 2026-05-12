@@ -8,7 +8,7 @@ import {
     dict
 } from '@fast-crud/fast-crud';
 
-export const createCrudOptions = function ({ crudExpose }: CreateCrudOptionsProps): CreateCrudOptionsRet {
+export const createCrudOptions = function ({ crudExpose, context }: CreateCrudOptionsProps): CreateCrudOptionsRet {
     const pageRequest = async (query: any) => {
         return await api.GetList(query);
     };
@@ -30,6 +30,30 @@ export const createCrudOptions = function ({ crudExpose }: CreateCrudOptionsProp
                 addRequest,
                 editRequest,
                 delRequest,
+            },
+            actionbar: {
+                buttons: {
+                    add: { show: false },
+                },
+            },
+            rowHandle: {
+                fixed: 'right',
+                width: 160,
+                buttons: {
+                    view: { show: false },
+                    edit: { show: false },
+                    remove: { show: false },
+                    chat: {
+                        text: '沟通记录',
+                        iconRight: 'ChatDotRound',
+                        type: 'text',
+                        click: (ctx: any) => {
+                            if (context?.openChatDrawer) {
+                                context.openChatDrawer(ctx.row);
+                            }
+                        },
+                    },
+                },
             },
             columns: {
                 _index: {
