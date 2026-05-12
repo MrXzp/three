@@ -151,7 +151,7 @@ class WebAdminChatMessageViewSet(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
-    def list(self, request, order_id):
+    def get(self, request, order_id):
         """GET /web/order/{order_id}/messages/"""
         try:
             Order.objects.get(id=order_id)
@@ -178,7 +178,7 @@ class WebAdminChatMessageViewSet(APIView):
         ]
         return DetailResponse(data={'messages': data, 'total': len(data)})
 
-    def create(self, request, order_id):
+    def post(self, request, order_id):
         """POST /web/order/{order_id}/messages/  管理员代发消息"""
         content = request.data.get('content', '').strip()
         if not content:
