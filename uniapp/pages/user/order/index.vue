@@ -91,6 +91,7 @@ export default {
         { label: '待支付', value: 0 },
         { label: '待接单', value: 1 },
         { label: '服务中', value: 4 },
+        { label: '待确认', value: 5 },
         { label: '已完成', value: 6 },
       ],
     }
@@ -192,7 +193,9 @@ export default {
         5: '待确认',
         6: '已完成',
         7: '已评价',
-        8: '已取消'
+        8: '已取消',
+        9: '退款中',
+        10: '已退款'
       }
       if (status === 8 && cancelReason === 'timeout') {
         return '超时取消'
@@ -249,9 +252,14 @@ export default {
 .order-status { font-size: 24rpx; font-weight: 600; padding: 4rpx 16rpx; border-radius: 12rpx; }
 .status-0 { color: #FF9800; background: rgba(255, 152, 0, 0.1); }
 .status-1 { color: #00B4D8; background: rgba(0, 180, 216, 0.1); }
+.status-2 { color: #9C27B0; background: rgba(156, 39, 176, 0.1); }
+.status-3 { color: #FF9800; background: rgba(255, 152, 0, 0.1); }
 .status-4 { color: #9D4EDD; background: rgba(157, 78, 221, 0.1); }
+.status-5 { color: #E91E63; background: rgba(233, 30, 99, 0.1); }
 .status-6 { color: #00C853; background: rgba(0, 200, 83, 0.1); }
 .status-8 { color: #999999; background: rgba(153, 153, 153, 0.1); }
+.status-9 { color: #FF5722; background: rgba(255, 87, 34, 0.1); }
+.status-10 { color: #607D8B; background: rgba(96, 125, 139, 0.1); }
 
 .order-service-row { display: flex; gap: 16rpx; margin-bottom: 16rpx; align-items: center; }
 .order-service-img { width: 120rpx; height: 120rpx; border-radius: 12rpx; background: #F0F0F0; flex-shrink: 0; }

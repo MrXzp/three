@@ -248,9 +248,19 @@ class OrderViewSet(CustomModelViewSet):
                 continue
             
             try:
+                from decimal import Decimal
+                total = serializer.validated_data.get('total_amount', 0)
+                if total and float(total) > 0:
+                    hunter_share = (Decimal(str(total)) * Decimal('0.844')).quantize(Decimal('0.01'))
+                    platform_fee = (Decimal(str(total)) * Decimal('0.15')).quantize(Decimal('0.01'))
+                else:
+                    hunter_share = Decimal('0')
+                    platform_fee = Decimal('0')
                 order = Order.objects.create(
                     order_no=order_no,
                     customer_id=user_id,
+                    hunter_share=hunter_share,
+                    platform_fee=platform_fee,
                     **serializer.validated_data
                 )
                 # 返回订单信息
