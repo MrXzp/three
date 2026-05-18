@@ -31,7 +31,7 @@
       <view class="tips-card">
         <text class="tips-title">💡 收益说明</text>
         <text class="tips-text">• 平台抽成15%，打手分成85%</text>
-        <text class="tips-text">• 提现需扣除个税（800元起征，超出部分20%）</text>
+        <text class="tips-text">• 提现全额到账，收益自行申报个人所得税</text>
       </view>
 
       <!-- 搭子管理 -->

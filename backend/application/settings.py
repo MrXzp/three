@@ -416,4 +416,10 @@ from dvadmin3_celery.settings import *            # celery 异步任务
 #from dvadmin_social_auth.settings import *
 #from dvadmin_uniapp.settings import *
 # ...
+# ********** 微信支付证书配置 **********
+# 微信退款接口需要双向 TLS，请使用从微信商户平台下载的 pem 格式证书
+# apiclient_cert.pem：证书（公钥）
+# apiclient_key.pem：私钥
+WECHAT_SSL_CERT_FILE = os.path.join(BASE_DIR, "conf", "1106364727_20260512_cert", "apiclient_cert.pem")
+WECHAT_SSL_KEY_FILE = os.path.join(BASE_DIR, "conf", "1106364727_20260512_cert", "apiclient_key.pem")
 # ********** 一键导入插件配置结束 **********

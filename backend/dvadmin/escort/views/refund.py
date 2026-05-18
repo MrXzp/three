@@ -17,10 +17,9 @@ from django.conf import settings
 from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
+from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication, EscortUserPermission, EscortAdminPermission
 from dvadmin.utils.json_response import ErrorResponse, DetailResponse, SuccessResponse
 from dvadmin.utils.serializers import CustomModelSerializer
 from dvadmin.utils.viewset import CustomModelViewSet
@@ -88,7 +87,7 @@ class RefundRequestSerializer(CustomModelSerializer):
             'id', 'order', 'order_no', 'customer', 'customer_nickname', 'customer_phone',
             'total_amount', 'service_name', 'refund_amount', 'actual_refund_amount',
             'reason_type', 'reason_type_display', 'reason_detail',
-            'status', 'status_display',
+            'status', 'status_display', 'previous_order_status',
             'refund_no', 'refund_time',
             'reviewer_id', 'reviewer_name', 'review_notes', 'review_time',
             'create_datetime', 'update_datetime'
@@ -105,6 +104,19 @@ class RefundRequestViewSet(CustomModelViewSet):
         from rest_framework_simplejwt.authentication import JWTAuthentication
         return [EscortUserAuthentication(), JWTAuthentication()]
 
+    def get_permissions(self):
+        """按 action 名称返回对应权限类"""
+        # Web 后台 admin action
+        if self.action in ('approve', 'reject', 'execute_refund'):
+            return [EscortAdminPermission()]
+        # App 端 action
+        if self.action == 'apply':
+            return [EscortUserPermission()]
+        # 默认：POST/PUT/PATCH/DELETE 需要 EscortUserPermission，GET 任意访问
+        if self.request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+            return [EscortUserPermission()]
+        return []
+
     queryset = RefundRequest.objects.all().select_related('order', 'customer')
     serializer_class = RefundRequestSerializer
     filter_fields = ['status', 'customer', 'order']
@@ -117,13 +129,12 @@ class RefundRequestViewSet(CustomModelViewSet):
             queryset = queryset.filter(status=int(status_filter))
         return queryset
 
-    @action(methods=['GET'], detail=False, permission_classes=[IsAuthenticated])
+    @action(methods=['GET'], detail=False)
     def list_pending(self, request, *args, **kwargs):
-        """获取待处理的退款申请列表"""
+        """获取待处理的退款申请列表（待审核 + 退款失败可重试）"""
         queryset = self.get_queryset().filter(status__in=[
             RefundRequest.STATUS_PENDING,
-            RefundRequest.STATUS_APPROVED,
-            RefundRequest.STATUS_REFUNDING
+            RefundRequest.STATUS_FAILED,
         ])
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -132,16 +143,22 @@ class RefundRequestViewSet(CustomModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return SuccessResponse(data=serializer.data)
 
-    @action(methods=['POST'], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=['POST'], detail=True, permission_classes=[EscortAdminPermission])
     def approve(self, request, *args, **kwargs):
-        """批准退款申请"""
+        """
+        审核通过并自动执行退款（两步合并：审核通过即触发微信退款，以微信结果定最终状态）
+        - 若微信返回成功 → 状态变为【退款完成】
+        - 若微信返回失败 → 状态变为【退款失败】（可重试）
+        """
+        import logging
+        logger = logging.getLogger('django')
+
         instance = self.get_object()
 
-        if instance.status != RefundRequest.STATUS_PENDING:
-            return ErrorResponse(msg='只能处理待审核的退款申请')
+        if instance.status not in (RefundRequest.STATUS_PENDING, RefundRequest.STATUS_FAILED):
+            return ErrorResponse(msg='只能处理待审核或退款失败的退款申请')
 
         review_notes = request.data.get('review_notes', '')
-        # 实际退款金额（可选，默认等于申请金额）
         actual_amount = request.data.get('actual_refund_amount')
         if actual_amount is not None:
             try:
@@ -153,22 +170,127 @@ class RefundRequestViewSet(CustomModelViewSet):
         else:
             actual_amount = instance.refund_amount
 
-        instance.status = RefundRequest.STATUS_APPROVED
+        order = instance.order
+
+        # 先写审核信息（记录申退前订单状态，用于失败时还原）
         instance.actual_refund_amount = actual_amount
         instance.review_notes = review_notes
         instance.review_time = timezone.now()
-        # 记录审核人信息
-        instance.reviewer_id = request.user.id
-        instance.reviewer_name = getattr(request.user, 'name', None) or getattr(request.user, 'username', str(request.user.id))
-        instance.save()
+        if instance.previous_order_status is None:
+            instance.previous_order_status = order.status
+        validated_token = request.auth
+        admin_user_id = validated_token.get('user_id') if validated_token else None
+        instance.reviewer_id = admin_user_id
+        instance.reviewer_name = getattr(request.user, 'name', None) or getattr(request.user, 'username', str(admin_user_id) if admin_user_id else 'unknown')
 
-        # 更新订单状态为退款中
-        instance.order.status = Order.STATUS_REFUNDING
-        instance.order.save(update_fields=['status', 'update_datetime'])
+        # 金额校验
+        refund_fee = int(float(actual_amount) * 100)
+        total_fee = int(float(order.total_amount) * 100)
+        if refund_fee > total_fee:
+            instance.status = RefundRequest.STATUS_FAILED
+            instance.save()
+            return ErrorResponse(msg='退款金额不能超过订单支付金额')
 
-        return SuccessResponse(msg='退款申请已批准，请执行退款操作')
+        # 生成退款单号
+        refund_no = f"REF{order.order_no}{int(time.time() * 1000)}"
+        instance.refund_no = refund_no
 
-    @action(methods=['POST'], detail=True, permission_classes=[IsAuthenticated])
+        # 构造微信退款参数
+        nonce_str = _random_str(32)
+        refund_params = {
+            'appid': settings.WECHAT_MINI_APPID,
+            'mch_id': settings.WECHAT_MCHID,
+            'nonce_str': nonce_str,
+            'out_trade_no': order.out_trade_no,
+            'out_refund_no': refund_no,
+            'total_fee': total_fee,
+            'refund_fee': refund_fee,
+            'refund_desc': f'订单{order.order_no}退款',
+        }
+        refund_params['sign'] = _build_sign(refund_params)
+
+        wx_url = "https://api.mch.weixin.qq.com/secapi/pay/refund"
+
+        try:
+            import urllib.request
+            import ssl
+
+            xml_data = _dict_to_xml(refund_params)
+
+            cert_file = settings.WECHAT_SSL_CERT_FILE
+            key_file = settings.WECHAT_SSL_KEY_FILE
+            import os
+            if not os.path.exists(cert_file) or not os.path.exists(key_file):
+                logger.warning(f"[REFUND] 证书文件不存在，使用模拟模式")
+                instance.status = RefundRequest.STATUS_COMPLETED
+                instance.refund_time = timezone.now()
+                instance.save()
+                order.status = Order.STATUS_REFUNDED
+                order.save(update_fields=['status', 'update_datetime'])
+                return SuccessResponse(msg='退款成功（模拟-证书未配置）', data={
+                    'refund_no': refund_no,
+                    'refund_amount': float(refund_fee) / 100,
+                })
+
+            ssl_context = ssl.create_default_context()
+            ssl_context.load_cert_chain(certfile=cert_file, keyfile=key_file)
+
+            req = urllib.request.Request(
+                wx_url,
+                data=xml_data.encode('utf-8'),
+                headers={'Content-Type': 'application/xml'}
+            )
+            with urllib.request.urlopen(req, timeout=30, context=ssl_context) as resp:
+                result_xml = resp.read().decode('utf-8')
+
+            logger.info(f"[REFUND] 微信退款返回: {result_xml}")
+            result = _xml_to_dict(result_xml)
+
+            if result.get('return_code') == 'SUCCESS':
+                if result.get('result_code') == 'SUCCESS':
+                    # 钱到账了
+                    instance.status = RefundRequest.STATUS_COMPLETED
+                    instance.refund_time = timezone.now()
+                    instance.save()
+                    order.status = Order.STATUS_REFUNDED
+                    order.save(update_fields=['status', 'update_datetime'])
+                    return SuccessResponse(msg='退款成功', data={
+                        'refund_no': refund_no,
+                        'refund_amount': float(refund_fee) / 100,
+                    })
+                else:
+                    # 微信返回失败
+                    err_code = result.get('err_code', '')
+                    err_code_des = result.get('err_code_des', '')
+                    instance.status = RefundRequest.STATUS_FAILED
+                    instance.save()
+                    order.status = instance.previous_order_status if instance.previous_order_status is not None else Order.STATUS_PENDING_ACCEPT
+                    order.save(update_fields=['status', 'update_datetime'])
+                    return ErrorResponse(msg=f'退款失败: {err_code_des or err_code}')
+            else:
+                return_msg = result.get('return_msg', '')
+                instance.status = RefundRequest.STATUS_FAILED
+                instance.save()
+                order.status = instance.previous_order_status if instance.previous_order_status is not None else Order.STATUS_PENDING_ACCEPT
+                order.save(update_fields=['status', 'update_datetime'])
+                return ErrorResponse(msg=f'退款请求失败: {return_msg}')
+
+        except urllib.error.URLError as e:
+            logger.error(f"[REFUND] 退款网络错误: {e}")
+            instance.status = RefundRequest.STATUS_FAILED
+            instance.save()
+            order.status = instance.previous_order_status if instance.previous_order_status is not None else Order.STATUS_PENDING_ACCEPT
+            order.save(update_fields=['status', 'update_datetime'])
+            return ErrorResponse(msg=f'退款网络错误: {e}')
+        except Exception as e:
+            logger.error(f"[REFUND] 退款执行异常: {e}")
+            instance.status = RefundRequest.STATUS_FAILED
+            instance.save()
+            order.status = instance.previous_order_status if instance.previous_order_status is not None else Order.STATUS_PENDING_ACCEPT
+            order.save(update_fields=['status', 'update_datetime'])
+            return ErrorResponse(msg=f'退款执行失败: {e}')
+
+    @action(methods=['POST'], detail=True, permission_classes=[EscortAdminPermission])
     def reject(self, request, *args, **kwargs):
         """拒绝退款申请"""
         instance = self.get_object()
@@ -183,52 +305,61 @@ class RefundRequestViewSet(CustomModelViewSet):
         instance.status = RefundRequest.STATUS_REJECTED
         instance.review_notes = review_notes
         instance.review_time = timezone.now()
-        instance.reviewer_id = request.user.id
-        instance.reviewer_name = getattr(request.user, 'name', None) or getattr(request.user, 'username', str(request.user.id))
+        validated_token = request.auth
+        admin_user_id = validated_token.get('user_id') if validated_token else None
+        instance.reviewer_id = admin_user_id
+        instance.reviewer_name = getattr(request.user, 'name', None) or getattr(request.user, 'username', str(admin_user_id) if admin_user_id else 'unknown')
         instance.save()
+
+        # 还原订单状态为申退前的状态
+        if instance.previous_order_status is not None:
+            instance.order.status = instance.previous_order_status
+            instance.order.save(update_fields=['status', 'update_datetime'])
 
         return SuccessResponse(msg='退款申请已拒绝')
 
-    @action(methods=['POST'], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=['POST'], detail=True, permission_classes=[EscortAdminPermission])
     def execute_refund(self, request, *args, **kwargs):
         """
-        执行微信退款
+        强制重试退款（对退款失败的单子重试，逻辑同 approve）
         """
+        import logging
+        logger = logging.getLogger('django')
+
         instance = self.get_object()
 
-        if instance.status not in [RefundRequest.STATUS_APPROVED, RefundRequest.STATUS_REFUNDING]:
-            return ErrorResponse(msg='只能对已批准的退款申请执行退款')
+        if instance.status != RefundRequest.STATUS_FAILED:
+            return ErrorResponse(msg='只能对退款失败的单子执行重试')
+
+        review_notes = request.data.get('review_notes', '重试退款')
+        actual_amount = instance.actual_refund_amount or instance.refund_amount
 
         order = instance.order
 
         if not order.out_trade_no:
             return ErrorResponse(msg='订单没有微信支付单号，无法退款')
 
-        # 退款金额（以分为单位）
-        refund_fee = int(float(instance.actual_refund_amount) * 100)
+        refund_fee = int(float(actual_amount) * 100)
         total_fee = int(float(order.total_amount) * 100)
-
         if refund_fee > total_fee:
             return ErrorResponse(msg='退款金额不能超过订单支付金额')
 
-        # 生成退款单号
-        refund_no = f"REF{order.order_no}{int(time.time() * 1000)}"
+        refund_no = instance.refund_no or f"REF{order.order_no}{int(time.time() * 1000)}"
+        instance.refund_no = refund_no
 
-        # 构造微信退款参数
         nonce_str = _random_str(32)
         params = {
             'appid': settings.WECHAT_MINI_APPID,
             'mch_id': settings.WECHAT_MCHID,
             'nonce_str': nonce_str,
-            'transaction_id': order.out_trade_no,  # 微信订单号
-            'out_refund_no': refund_no,            # 商户退款单号
-            'total_fee': total_fee,                 # 订单总金额（分）
-            'refund_fee': refund_fee,               # 退款金额（分）
-            'refund_desc': f'订单{order.order_no}退款',  # 退款原因
+            'out_trade_no': order.out_trade_no,
+            'out_refund_no': refund_no,
+            'total_fee': total_fee,
+            'refund_fee': refund_fee,
+            'refund_desc': f'订单{order.order_no}退款（重试）',
         }
         params['sign'] = _build_sign(params)
 
-        # 调用微信退款接口（使用SSL证书）
         wx_url = "https://api.mch.weixin.qq.com/secapi/pay/refund"
         try:
             import urllib.request
@@ -236,91 +367,80 @@ class RefundRequestViewSet(CustomModelViewSet):
 
             xml_data = _dict_to_xml(params)
 
-            # 检查证书文件是否存在
             cert_file = settings.WECHAT_SSL_CERT_FILE
             key_file = settings.WECHAT_SSL_KEY_FILE
-
             import os
             if not os.path.exists(cert_file) or not os.path.exists(key_file):
-                logger.warning(f"[REFUND] 证书文件不存在，使用模拟模式: cert={cert_file}, key={key_file}")
-                # 模拟退款成功
+                logger.warning(f"[REFUND] 证书文件不存在，使用模拟模式")
                 instance.status = RefundRequest.STATUS_COMPLETED
-                instance.refund_no = refund_no
                 instance.refund_time = timezone.now()
+                instance.review_notes = review_notes
                 instance.save()
                 order.status = Order.STATUS_REFUNDED
                 order.save(update_fields=['status', 'update_datetime'])
-                return SuccessResponse(msg='退款成功（模拟-证书未配置）', data={
+                return SuccessResponse(msg='重试退款成功（模拟）', data={
                     'refund_no': refund_no,
                     'refund_amount': float(refund_fee) / 100,
                 })
 
-            # 创建SSL上下文，加载证书
-            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ssl_context = ssl.create_default_context()
             ssl_context.load_cert_chain(certfile=cert_file, keyfile=key_file)
 
-            # 创建请求
             req = urllib.request.Request(
                 wx_url,
                 data=xml_data.encode('utf-8'),
                 headers={'Content-Type': 'application/xml'}
             )
-
-            # 使用证书发起请求
-            opener = urllib.request.HTTPSHandler(context=ssl_context)
-            with opener.open(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=30, context=ssl_context) as resp:
                 result_xml = resp.read().decode('utf-8')
 
-            logger.info(f"[REFUND] 微信退款返回: {result_xml}")
-
+            logger.info(f"[REFUND] 重试退款返回: {result_xml}")
             result = _xml_to_dict(result_xml)
 
-            # 解析退款结果
             if result.get('return_code') == 'SUCCESS':
                 if result.get('result_code') == 'SUCCESS':
-                    # 退款成功
                     instance.status = RefundRequest.STATUS_COMPLETED
-                    instance.refund_no = refund_no
                     instance.refund_time = timezone.now()
+                    instance.review_notes = review_notes
                     instance.save()
-
                     order.status = Order.STATUS_REFUNDED
                     order.save(update_fields=['status', 'update_datetime'])
-
-                    return SuccessResponse(msg='退款成功', data={
+                    return SuccessResponse(msg='重试退款成功', data={
                         'refund_no': refund_no,
                         'refund_amount': float(refund_fee) / 100,
                     })
                 else:
-                    # 退款失败
                     err_code = result.get('err_code', '')
                     err_code_des = result.get('err_code_des', '')
                     instance.status = RefundRequest.STATUS_FAILED
                     instance.save()
-                    return ErrorResponse(msg=f'退款失败: {err_code_des or err_code}')
+                    order.status = instance.previous_order_status if instance.previous_order_status is not None else Order.STATUS_PENDING_ACCEPT
+                    order.save(update_fields=['status', 'update_datetime'])
+                    return ErrorResponse(msg=f'重试退款失败: {err_code_des or err_code}')
             else:
-                # 通信失败
                 return_msg = result.get('return_msg', '')
                 instance.status = RefundRequest.STATUS_FAILED
                 instance.save()
-                return ErrorResponse(msg=f'退款请求失败: {return_msg}')
+                order.status = instance.previous_order_status if instance.previous_order_status is not None else Order.STATUS_PENDING_ACCEPT
+                order.save(update_fields=['status', 'update_datetime'])
+                return ErrorResponse(msg=f'重试退款请求失败: {return_msg}')
 
         except urllib.error.URLError as e:
-            logger.error(f"[REFUND] 退款网络错误: {e}")
+            logger.error(f"[REFUND] 重试退款网络错误: {e}")
             instance.status = RefundRequest.STATUS_FAILED
             instance.save()
-            return ErrorResponse(msg=f'退款网络错误: {e}')
+            order.status = instance.previous_order_status if instance.previous_order_status is not None else Order.STATUS_PENDING_ACCEPT
+            order.save(update_fields=['status', 'update_datetime'])
+            return ErrorResponse(msg=f'重试退款网络错误: {e}')
         except Exception as e:
-            import logging
-            logger = logging.getLogger('django')
-            logger.error(f"[REFUND] 退款执行异常: {e}")
-
+            logger.error(f"[REFUND] 重试退款执行异常: {e}")
             instance.status = RefundRequest.STATUS_FAILED
             instance.save()
+            order.status = instance.previous_order_status if instance.previous_order_status is not None else Order.STATUS_PENDING_ACCEPT
+            order.save(update_fields=['status', 'update_datetime'])
+            return ErrorResponse(msg=f'重试退款执行失败: {e}')
 
-            return ErrorResponse(msg=f'退款执行失败: {e}')
-
-    @action(methods=['GET'], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=['GET'], detail=True)
     def query_refund_status(self, request, *args, **kwargs):
         """查询微信退款状态"""
         instance = self.get_object()
@@ -339,7 +459,7 @@ class RefundRequestViewSet(CustomModelViewSet):
             'refund_time': instance.refund_time,
         })
 
-    @action(methods=['GET'], detail=False, permission_classes=[IsAuthenticated])
+    @action(methods=['GET'], detail=False)
     def statistics(self, request, *args, **kwargs):
         """退款统计"""
         from django.db.models import Count, Sum
@@ -363,7 +483,7 @@ class RefundRequestViewSet(CustomModelViewSet):
 
     # ==================== 用户端接口 ====================
 
-    @action(methods=['POST'], detail=False, permission_classes=[IsAuthenticated])
+    @action(methods=['POST'], detail=False, permission_classes=[EscortUserPermission])
     def apply(self, request, *args, **kwargs):
         """
         用户提交退款申请
@@ -409,22 +529,27 @@ class RefundRequestViewSet(CustomModelViewSet):
         if reason_type not in valid_reasons:
             return ErrorResponse(msg='无效的退款原因类型')
 
-        # 创建退款申请
+        # 创建退款申请（记录申退前订单状态，用于拒绝时还原）
         refund_request = RefundRequest.objects.create(
             order=order,
             customer=order.customer,
-            refund_amount=order.total_amount,  # 默认申请全额退款
+            refund_amount=order.total_amount,
             reason_type=reason_type,
             reason_detail=reason_detail,
             status=RefundRequest.STATUS_PENDING,
+            previous_order_status=order.status,
         )
+
+        # 订单状态改为"退款中"，阻止其他陪玩师接单
+        order.status = Order.STATUS_REFUNDING
+        order.save(update_fields=['status', 'update_datetime'])
 
         return SuccessResponse(msg='退款申请已提交，请等待审核', data={
             'refund_id': refund_request.id,
             'refund_amount': float(refund_request.refund_amount),
         })
 
-    @action(methods=['GET'], detail=False, permission_classes=[IsAuthenticated])
+    @action(methods=['GET'], detail=False)
     def my(self, request, *args, **kwargs):
         """
         用户查询自己的退款记录
@@ -448,7 +573,7 @@ class RefundRequestViewSet(CustomModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return SuccessResponse(data=serializer.data)
 
-    @action(methods=['GET'], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=['GET'], detail=True)
     def check(self, request, *args, **kwargs):
         """
         用户查询指定订单的退款状态

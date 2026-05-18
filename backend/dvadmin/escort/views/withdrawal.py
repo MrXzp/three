@@ -7,7 +7,7 @@
 """
 from rest_framework import serializers
 from rest_framework.decorators import action
-from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
+from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication, EscortUserPermission, EscortAdminPermission
 from dvadmin.utils.json_response import ErrorResponse, DetailResponse, SuccessResponse
 from dvadmin.utils.serializers import CustomModelSerializer
 from dvadmin.utils.viewset import CustomModelViewSet
@@ -55,7 +55,7 @@ class WithdrawalViewSet(CustomModelViewSet):
             queryset = queryset.filter(status=status)
         return queryset
 
-    @action(methods=['POST'], detail=False)
+    @action(methods=['POST'], detail=False, permission_classes=[EscortUserPermission])
     def apply(self, request):
         """用户提交提现申请（含余额校验）"""
         from decimal import Decimal
@@ -73,25 +73,18 @@ class WithdrawalViewSet(CustomModelViewSet):
         user = request.user
         if amount > user.balance:
             return ErrorResponse(msg='提现金额不能超过可提现余额（¥' + str(user.balance) + '）')
-        # 个税计算
-        tax_threshold = Decimal('800')
-        tax_rate = Decimal('0.20')
-        tax = Decimal('0')
-        if amount > tax_threshold:
-            tax = (amount - tax_threshold) * tax_rate
-        actual = amount - tax
         Withdrawal.objects.create(
             creator=user,
             modifier=user,
             user=user,
             amount=amount,
-            tax_amount=tax,
-            actual_amount=actual,
+            tax_amount=Decimal('0'),
+            actual_amount=amount,
             status=Withdrawal.STATUS_PENDING,
         )
         return SuccessResponse(msg='提现申请已提交')
 
-    @action(methods=['POST'], detail=True)
+    @action(methods=['POST'], detail=True, permission_classes=[EscortAdminPermission])
     def approve(self, request, *args, **kwargs):
         """批准提现申请"""
         from django.utils import timezone
@@ -116,7 +109,7 @@ class WithdrawalViewSet(CustomModelViewSet):
         
         return SuccessResponse(msg='提现申请已批准，进入处理中状态')
     
-    @action(methods=['POST'], detail=True)
+    @action(methods=['POST'], detail=True, permission_classes=[EscortAdminPermission])
     def complete(self, request, *args, **kwargs):
         """完成提现（模拟支付成功）"""
         import time
@@ -141,7 +134,7 @@ class WithdrawalViewSet(CustomModelViewSet):
         
         return SuccessResponse(msg='提现成功，已模拟支付完成')
     
-    @action(methods=['POST'], detail=True)
+    @action(methods=['POST'], detail=True, permission_classes=[EscortAdminPermission])
     def reject(self, request, *args, **kwargs):
         """拒绝提现申请"""
         from django.utils import timezone

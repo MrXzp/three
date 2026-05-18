@@ -18,9 +18,9 @@ from django.conf import settings
 from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
+from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication, EscortUserPermission
 from rest_framework.views import APIView
 from dvadmin.utils.json_response import ErrorResponse, DetailResponse, SuccessResponse
 from dvadmin.utils.serializers import CustomModelSerializer
@@ -131,10 +131,10 @@ class OrderCreateUpdateSerializer(CustomModelSerializer):
     order_no = serializers.CharField(read_only=True)  # 创建时自动生成，只读返回
 
     def create(self, validated_data):
-        """自动生成唯一订单号"""
+        """自动生成唯一订单号，并计算分账金额"""
         import datetime
         import time
-        
+
         # 使用时间戳(微秒) + 用户ID + 随机字符
         prefix = 'EP'
         timestamp = str(time.time()).replace('.', '')  # 微秒级时间戳
@@ -144,6 +144,19 @@ class OrderCreateUpdateSerializer(CustomModelSerializer):
         order_no = "%s%s%d%s" % (prefix, timestamp, user_id, random_str)
 
         validated_data['order_no'] = order_no
+
+        # 自动计算分账金额（微信通道费0.6%由打手承担）
+        total = validated_data.get('total_amount', 0)
+        if total and total > 0:
+            from decimal import Decimal
+            # 打手实际收益 = 订单金额 × 84.4%（扣除平台15%服务费和微信0.6%通道费）
+            # 平台服务费 = 订单金额 × 15%
+            validated_data['hunter_share'] = (Decimal(str(total)) * Decimal('0.844')).quantize(Decimal('0.01'))
+            validated_data['platform_fee'] = (Decimal(str(total)) * Decimal('0.15')).quantize(Decimal('0.01'))
+        else:
+            validated_data['hunter_share'] = Decimal('0')
+            validated_data['platform_fee'] = Decimal('0')
+
         return super().create(validated_data)
 
     class Meta:
@@ -251,7 +264,7 @@ class OrderViewSet(CustomModelViewSet):
         
         return ErrorResponse(msg="订单创建失败，请重试")
     
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=["POST"], detail=True, permission_classes=[EscortUserPermission])
     def confirm_payment(self, request, *args, **kwargs):
         """确认支付"""
         instance = self.get_object()
@@ -263,7 +276,7 @@ class OrderViewSet(CustomModelViewSet):
         instance.save()
         return SuccessResponse(msg="支付已确认")
     
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=["POST"], detail=True, permission_classes=[EscortUserPermission])
     def cancel(self, request, *args, **kwargs):
         """取消订单"""
         instance = self.get_object()
@@ -293,7 +306,7 @@ class OrderViewSet(CustomModelViewSet):
         
         return ErrorResponse(msg="当前状态无法取消订单")
     
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=["POST"], detail=True, permission_classes=[EscortUserPermission])
     def force_complete(self, request, *args, **kwargs):
         """强制完成订单"""
         instance = self.get_object()
@@ -305,7 +318,7 @@ class OrderViewSet(CustomModelViewSet):
         instance.save()
         return SuccessResponse(msg="订单已强制完成")
     
-    @action(methods=["GET"], detail=False, permission_classes=[IsAuthenticated])
+    @action(methods=["GET"], detail=False, permission_classes=[EscortUserPermission])
     def statistics(self, request, *args, **kwargs):
         """订单统计"""
         from django.db.models import Count, Sum
@@ -327,7 +340,7 @@ class OrderViewSet(CustomModelViewSet):
             'status_stats': list(status_stats)
         })
 
-    @action(methods=["POST"], detail=False, permission_classes=[IsAuthenticated])
+    @action(methods=["POST"], detail=False, permission_classes=[EscortUserPermission])
     def wx_pay(self, request, *args, **kwargs):
         """
         微信支付 - 统一下单接口
@@ -469,7 +482,7 @@ class OrderViewSet(CustomModelViewSet):
 
         return DetailResponse(data={'return_code': 'SUCCESS', 'return_msg': 'OK'})
 
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=["POST"], detail=True, permission_classes=[EscortUserPermission])
     def accept(self, request, *args, **kwargs):
         """
         打手接单
@@ -535,7 +548,7 @@ class OrderViewSet(CustomModelViewSet):
                 'status_display': instance.get_status_display(),
             })
 
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=["POST"], detail=True, permission_classes=[EscortUserPermission])
     def hunter_complete(self, request, *args, **kwargs):
         """
         打手完成服务
@@ -588,7 +601,7 @@ class OrderViewSet(CustomModelViewSet):
         instance.save(update_fields=['status', 'service_start_time', 'update_datetime'])
         return SuccessResponse(msg="服务已开始，祝您游戏愉快！")
 
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=["POST"], detail=True, permission_classes=[EscortUserPermission])
     def invite_buddy(self, request, *args, **kwargs):
         """
         邀请搭子加入订单（仅限多人订单）
@@ -662,7 +675,7 @@ class OrderViewSet(CustomModelViewSet):
             'status_display': instance.get_status_display(),
         })
 
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=["POST"], detail=True, permission_classes=[EscortUserPermission])
     def confirm_service_done(self, request, *args, **kwargs):
         """
         客户确认服务完成
@@ -681,7 +694,7 @@ class OrderViewSet(CustomModelViewSet):
         instance.save(update_fields=['status', 'service_end_time', 'update_datetime'])
         return SuccessResponse(msg="已确认服务完成，等待您最终确认并完成支付结算")
 
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=["POST"], detail=True, permission_classes=[EscortUserPermission])
     def confirm_complete(self, request, *args, **kwargs):
         """
         客户最终确认订单完成，分配收益给打手
@@ -716,7 +729,7 @@ class OrderViewSet(CustomModelViewSet):
 
         return SuccessResponse(msg="订单已完成，收益已打入打手账户")
 
-    @action(methods=["GET"], detail=False, permission_classes=[IsAuthenticated])
+    @action(methods=["GET"], detail=False, permission_classes=[EscortUserPermission])
     def my(self, request, *args, **kwargs):
         """
         打手获取自己已接的订单列表
@@ -740,7 +753,7 @@ class OrderViewSet(CustomModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return SuccessResponse(data=serializer.data)
 
-    @action(methods=["GET"], detail=False, permission_classes=[IsAuthenticated])
+    @action(methods=["GET"], detail=False, permission_classes=[EscortUserPermission])
     def customer_orders(self, request, *args, **kwargs):
         """
         客户获取自己下过的订单列表
@@ -764,7 +777,7 @@ class OrderViewSet(CustomModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return SuccessResponse(data=serializer.data)
 
-    @action(methods=["GET"], detail=False, permission_classes=[IsAuthenticated])
+    @action(methods=["GET"], detail=False, permission_classes=[EscortUserPermission])
     def query_payment_status(self, request, *args, **kwargs):
         """
         查询订单支付状态 - 主动查询微信确认是否已支付

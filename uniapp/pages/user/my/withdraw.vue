@@ -31,17 +31,9 @@
 
       <!-- 费用说明 -->
       <view class="fee-card">
-        <view class="fee-row">
-          <text class="fee-label">提现金额</text>
-          <text class="fee-value">¥{{ amount || '0.00' }}</text>
-        </view>
-        <view class="fee-row">
-          <text class="fee-label">个税（800起征，超额20%）</text>
-          <text class="fee-value red">-¥{{ taxAmount }}</text>
-        </view>
         <view class="fee-row total">
-          <text class="fee-label">实际到账</text>
-          <text class="fee-value primary">¥{{ actualAmount }}</text>
+          <text class="fee-label">提现金额</text>
+          <text class="fee-value primary">¥{{ amount || '0.00' }}</text>
         </view>
       </view>
 
@@ -50,7 +42,7 @@
         <text class="tips-title">💡 提现说明</text>
         <text class="tips-item">• 平台将在1-3个工作日内完成处理</text>
         <text class="tips-item">• 单笔提现最低 ¥10，最高 ¥5000</text>
-        <text class="tips-item">• 800元以内免税，超出部分收取20%个人所得税</text>
+        <text class="tips-item">• 提现全额到账，收益自行申报个人所得税</text>
       </view>
 
       <!-- 提交按钮 -->
@@ -70,13 +62,6 @@ import customNavbar from '@/components/custom-navbar/custom-navbar.vue'
 const QUICK_VALUES = [100, 200, 400]
 const MIN_AMOUNT = 10
 const MAX_AMOUNT = 5000
-const TAX_THRESHOLD = 800
-const TAX_RATE = 0.20
-
-function calcTax(n) {
-  if (!n || n <= TAX_THRESHOLD) return 0
-  return (n - TAX_THRESHOLD) * TAX_RATE
-}
 
 export default {
   components: { customNavbar },
@@ -96,11 +81,8 @@ export default {
     amountNum() {
       return parseFloat(this.amount) || 0
     },
-    taxAmount() {
-      return calcTax(this.amountNum).toFixed(2)
-    },
     actualAmount() {
-      return Math.max(0, this.amountNum - calcTax(this.amountNum)).toFixed(2)
+      return this.amountNum.toFixed(2)
     },
     quickAmounts() {
       const base = QUICK_VALUES.map(v => ({
@@ -160,7 +142,7 @@ export default {
       }
       const confirmed = await showModal({
         title: '确认提现',
-        content: '提现金额 ¥' + this.amountNum + '，实际到账 ¥' + this.actualAmount + '，确定提交吗？',
+        content: '提现金额 ¥' + this.amountNum + '，确定提交吗？',
       })
       if (!confirmed.confirm) return
 

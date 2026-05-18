@@ -541,6 +541,13 @@ class RefundRequest(CoreModel):
         help_text='退款申请状态'
     )
 
+    # 申退前订单状态（用于拒绝时还原订单状态）
+    previous_order_status = models.IntegerField(
+        blank=True, null=True,
+        verbose_name='申退前订单状态',
+        help_text='申请退款前订单的状态值，用于拒绝退款时还原'
+    )
+
     # 微信退款相关
     refund_no = models.CharField(
         max_length=100, blank=True, null=True,

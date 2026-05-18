@@ -4,12 +4,11 @@
 """
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
+from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication, EscortUserPermission
 
 
 class TestView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [EscortUserPermission]
 
     def get_authenticators(self):
         return [EscortUserAuthentication()]

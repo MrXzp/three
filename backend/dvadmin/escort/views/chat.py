@@ -6,12 +6,12 @@
 @Remark: 订单聊天消息API
 """
 from rest_framework import serializers
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
+from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication, EscortUserPermission, EscortAdminPermission
 from dvadmin.utils.json_response import DetailResponse, SuccessResponse
 from dvadmin.utils.serializers import CustomModelSerializer
 from dvadmin.utils.viewset import CustomModelViewSet
@@ -42,7 +42,7 @@ class ChatMessageViewSet(CustomModelViewSet):
     """
     serializer_class = ChatMessageSerializer
     authentication_classes = [EscortUserAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [EscortUserPermission]
 
     def get_queryset(self):
         return ChatMessage.objects.filter(
@@ -149,7 +149,8 @@ class WebAdminChatMessageViewSet(APIView):
     独立于 App 端接口，支持 Admin JWT 认证，直接返回消息列表（不分页）
     """
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [EscortAdminPermission]
+
 
     def get(self, request, order_id):
         """GET /web/order/{order_id}/messages/"""

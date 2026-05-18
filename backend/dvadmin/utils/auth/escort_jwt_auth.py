@@ -9,6 +9,7 @@
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, AuthenticationFailed
 from django.utils.translation import gettext_lazy as _
+from rest_framework.permissions import BasePermission
 
 
 class EscortUserAuthentication(JWTAuthentication):
@@ -30,20 +31,60 @@ class EscortUserAuthentication(JWTAuthentication):
         user_id = validated_token.get('user_id')
         openid = validated_token.get('openid')
 
-        # 如果 token 里没有任何 escort 专属字段，说明不是陪玩平台签发的 token
-        # 静默跳过，让认证链继续（不会 401，也不会阻止后续认证器）
-        if not openid:
+        # 如果 token 里没有任何 escort 专属字段，静默跳过，让认证链继续
+        if not openid and not user_id:
             return None
 
-        try:
-            if user_id:
-                user = EscortUser.objects.get(pk=user_id)
-            else:
-                user = EscortUser.objects.get(openid=openid)
-        except EscortUser.DoesNotExist:
-            raise AuthenticationFailed(
-                detail={'detail': 'User not found', 'code': 'user_not_found'},
-                code='user_not_found'
-            )
+        # 有 openid → 一定是陪玩平台 token，按 openid 或 user_id 查找
+        if openid:
+            try:
+                if user_id:
+                    user = EscortUser.objects.get(pk=user_id)
+                else:
+                    user = EscortUser.objects.get(openid=openid)
+            except EscortUser.DoesNotExist:
+                raise AuthenticationFailed(
+                    detail={'detail': 'User not found', 'code': 'user_not_found'},
+                    code='user_not_found'
+                )
+            return user
 
-        return user
+        # 只有 user_id，没有 openid → 可能是 admin 后台登录
+        # 尝试查 EscortUser，找不到则静默跳过，让后续的 admin JWTAuthentication 处理
+        try:
+            return EscortUser.objects.get(pk=user_id)
+        except EscortUser.DoesNotExist:
+            return None
+
+
+class EscortUserPermission(BasePermission):
+    """
+    陪玩平台专用权限类
+    只要用户通过 EscortUserAuthentication 认证（request.user 是 EscortUser）即可
+    不依赖 role、is_superuser 等 admin 用户才有的字段
+    """
+
+    def has_permission(self, request, view):
+        from dvadmin.escort.models import EscortUser
+        from django.contrib.auth.models import AnonymousUser
+        import logging
+        logger = logging.getLogger('escort')
+        logger.warning(f"[EscortUserPermission] user={request.user}, type={type(request.user)}, is_EscortUser={isinstance(request.user, EscortUser)}, is_Anonymous={isinstance(request.user, AnonymousUser)}")
+        return isinstance(request.user, EscortUser)
+
+
+class EscortAdminPermission(BasePermission):
+    """
+    陪玩平台 Web 后台管理权限
+    只要 request.user 不是 AnonymousUser 即可（Admin JWT 认证成功即为通过）
+    不依赖 EscortUser 相关字段
+    """
+
+    def has_permission(self, request, view):
+        from django.contrib.auth.models import AnonymousUser
+        import logging
+        logger = logging.getLogger('escort')
+        logger.warning(f"[EscortAdminPermission] user={request.user}, type={type(request.user)}, AnonymousUser={isinstance(request.user, AnonymousUser)}")
+        result = not isinstance(request.user, AnonymousUser)
+        logger.warning(f"[EscortAdminPermission] result={result}")
+        return result

@@ -7,8 +7,7 @@
 """
 from rest_framework import serializers
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
-from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication
+from dvadmin.utils.auth.escort_jwt_auth import EscortUserAuthentication, EscortUserPermission, EscortAdminPermission
 from dvadmin.utils.json_response import ErrorResponse, DetailResponse, SuccessResponse
 from dvadmin.utils.serializers import CustomModelSerializer
 from dvadmin.utils.viewset import CustomModelViewSet
@@ -153,7 +152,7 @@ class ServiceViewSet(CustomModelViewSet):
     filter_fields = ['category', 'service_type', 'is_active', ]
     search_fields = ['name', 'description', 'game_name']
     
-    @action(methods=["POST"], detail=True, permission_classes=[IsAuthenticated])
+    @action(methods=["POST"], detail=True, permission_classes=[EscortAdminPermission])
     def toggle_status(self, request, *args, **kwargs):
         """切换服务状态（上架/下架）"""
         instance = self.get_object()
@@ -163,7 +162,7 @@ class ServiceViewSet(CustomModelViewSet):
         status_text = "上架" if instance.is_active else "下架"
         return SuccessResponse(msg=f"服务已{status_text}")
     
-    @action(methods=["GET"], detail=False, permission_classes=[IsAuthenticated])
+    @action(methods=["GET"], detail=False, permission_classes=[EscortUserPermission])
     def statistics(self, request, *args, **kwargs):
         """服务统计"""
         total_services = self.queryset.count()

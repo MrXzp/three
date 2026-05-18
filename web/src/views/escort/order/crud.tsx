@@ -118,6 +118,8 @@ export const createCrudOptions = function ({ crudExpose, context }: CreateCrudOp
                             { value: 6, label: '已完成', color: 'success' },
                             { value: 7, label: '已评价', color: 'default' },
                             { value: 8, label: '已取消', color: 'danger' },
+                            { value: 9, label: '退款中', color: 'warning' },
+                            { value: 10, label: '已退款', color: 'success' },
                         ],
                     }),
                     column: {
