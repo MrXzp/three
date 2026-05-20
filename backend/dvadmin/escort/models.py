@@ -51,6 +51,7 @@ class EscortUser(CoreModel):
     unionid = models.CharField(max_length=128, blank=True, null=True, verbose_name='微信UnionID', help_text='微信UnionID')
     nickname = models.CharField(max_length=100, blank=True, null=True, verbose_name='微信昵称', help_text='微信昵称')
     avatar_url = models.URLField(max_length=500, blank=True, null=True, verbose_name='微信头像', help_text='微信头像URL')
+    invite_code = models.CharField(max_length=16, blank=True, null=True, unique=True, verbose_name='搭子邀请码', help_text='搭子邀请码，用于扫码绑定')
     
     # 用户信息
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name='手机号', help_text='用户手机号')

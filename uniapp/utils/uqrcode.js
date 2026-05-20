@@ -1322,58 +1322,71 @@ let uQRCode = {};
 			}
 
 			function createCanvas() {
-				var qrcode = new QRCode(options.typeNumber, options.correctLevel);
-				qrcode.addData(utf16To8(options.text));
-				qrcode.make();
+				try {
+					var qrcode = new QRCode(options.typeNumber, options.correctLevel);
+					qrcode.addData(utf16To8(options.text));
+					qrcode.make();
+					console.log('uQRCode: qrcode生成完成，moduleCount=', qrcode.getModuleCount(), 'text=', options.text);
 
-				var ctx = uni.createCanvasContext(options.canvasId, options.componentInstance);
-				ctx.setFillStyle(options.backgroundColor);
-				ctx.fillRect(0, 0, options.size, options.size);
+					var ctx = uni.createCanvasContext(options.canvasId, options.componentInstance);
+					console.log('uQRCode: canvasContext创建成功');
+					ctx.setFillStyle(options.backgroundColor);
+					ctx.fillRect(0, 0, options.size, options.size);
 
-				var tileW = (options.size - options.margin * 2) / qrcode.getModuleCount();
-				var tileH = tileW;
+					var tileW = (options.size - options.margin * 2) / qrcode.getModuleCount();
+					var tileH = tileW;
 
-				for (var row = 0; row < qrcode.getModuleCount(); row++) {
-					for (var col = 0; col < qrcode.getModuleCount(); col++) {
-						var style = qrcode.isDark(row, col) ? options.foregroundColor : options.backgroundColor;
-						ctx.setFillStyle(style);
-						var x = Math.round(col * tileW) + options.margin;
-						var y = Math.round(row * tileH) + options.margin;
-						var w = Math.ceil((col + 1) * tileW) - Math.floor(col * tileW);
-						var h = Math.ceil((row + 1) * tileW) - Math.floor(row * tileW);
-						ctx.fillRect(x, y, w, h);
+					for (var row = 0; row < qrcode.getModuleCount(); row++) {
+						for (var col = 0; col < qrcode.getModuleCount(); col++) {
+							var style = qrcode.isDark(row, col) ? options.foregroundColor : options.backgroundColor;
+							ctx.setFillStyle(style);
+							var x = Math.round(col * tileW) + options.margin;
+							var y = Math.round(row * tileH) + options.margin;
+							var w = Math.ceil((col + 1) * tileW) - Math.floor(col * tileW);
+							var h = Math.ceil((row + 1) * tileW) - Math.floor(row * tileW);
+							ctx.fillRect(x, y, w, h);
+						}
 					}
-				}
 
-				setTimeout(function() {
+					console.log('uQRCode: fillRect完成，准备draw');
 					ctx.draw(false, function() {
+						console.log('uQRCode: draw回调触发');
 						setTimeout(function() {
+							console.log('uQRCode: 开始canvasToTempFilePath, canvasId=', options.canvasId, 'size=', options.size);
 							uni.canvasToTempFilePath({
 								canvasId: options.canvasId,
 								fileType: options.fileType,
-								width: options.size,
-								height: options.size,
 								destWidth: options.size,
 								destHeight: options.size,
+								quality: 1,
 								success: function(res) {
+									console.log('uQRCode: 导出成功，tempFilePath=', res.tempFilePath);
 									options.success && options.success(res.tempFilePath);
 								},
 								fail: function(error) {
+									console.error('uQRCode: 导出失败', error);
 									options.fail && options.fail(error);
 								},
 								complete: function(res) {
 									options.complete && options.complete(res);
 								}
 							}, options.componentInstance);
-						}, options.text.length + 100);
+						}, 200);
 					});
-				}, 150);
+				} catch(e) {
+					console.error('uQRCode: 绘制过程报错', e);
+					options.fail && options.fail(e);
+				}
 			}
 			
 			createCanvas();
 		}
 
 	}
+
+	// 暴露内部工具函数，供外部手动构建二维码时使用
+	uQRCode.utf16To8 = utf16To8;
+	uQRCode.QRCode = QRCode;
 
 })()
 

@@ -109,7 +109,15 @@ class BuddyRelationViewSet(CustomModelViewSet):
         if user.hunter_status != EscortUser.HUNTER_APPROVED:
             return ErrorResponse(msg='只有认证打手才能生成邀请码')
 
-        code = uuid.uuid4().hex[:12].upper()
+        # 生成12位唯一邀请码并存入用户表
+        import random
+        while True:
+            code = ''.join(random.choices('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', k=12))
+            if not EscortUser.objects.filter(invite_code=code).exists():
+                break
+        user.invite_code = code
+        user.save(update_fields=['invite_code', 'update_datetime'])
+
         return SuccessResponse(data={
             'code': code,
             'qrcode_url': f'/api/escort/app/buddy/qrcode/?code={code}'
@@ -124,27 +132,41 @@ class BuddyRelationViewSet(CustomModelViewSet):
     @action(methods=['POST'], detail=False)
     def bind(self, request):
         """扫码绑定搭子"""
+        import logging, time
+        logger = logging.getLogger('django')
+        logger.info(f'==== bind接口被调用 ====')
+        logger.info(f'request.user: {request.user}, id={getattr(request.user, "id", None)}')
+        logger.info(f'request.data: {request.data}')
+
         user = request.user
         code = request.data.get('code', '').strip()
+        expire = request.data.get('expire')
+        uid = request.data.get('uid', '').strip()
+        logger.info(f'解析到的code={code}, expire={expire}, uid={uid}')
 
         if not code:
             return ErrorResponse(msg='邀请码不能为空')
 
+        # 前端已校验过期，后端再双重校验
+        if expire:
+            try:
+                expire_ts = int(expire)
+                if time.time() > expire_ts:
+                    logger.warning(f'邀请码已过期: expire={expire_ts}')
+                    return ErrorResponse(msg='邀请码已过期，请重新生成')
+            except (ValueError, TypeError):
+                pass
+
         if user.hunter_status != EscortUser.HUNTER_APPROVED:
             return ErrorResponse(msg='只有认证打手才能绑定搭子')
 
-        # 根据邀请码找人（简化：邀请码即对方用户ID的hash）
-        # 实际项目中邀请码应存入数据库，此处用手机号后4位做简化匹配
-        buddy_phone_last4 = code[-4:]
-        if not buddy_phone_last4.isdigit():
-            return ErrorResponse(msg='邀请码格式无效')
-
+        # 根据邀请码查找对方用户
         try:
-            buddy = EscortUser.objects.get(phone__endswith=buddy_phone_last4, hunter_status=EscortUser.HUNTER_APPROVED)
+            buddy = EscortUser.objects.get(invite_code=code, hunter_status=EscortUser.HUNTER_APPROVED)
+            logger.info(f'找到搭子: id={buddy.id}, nickname={buddy.nickname}')
         except EscortUser.DoesNotExist:
-            return ErrorResponse(msg='未找到该搭子，请确认对方是认证打手')
-        except EscortUser.MultipleObjectsReturned:
-            return ErrorResponse(msg='邀请码不唯一，请使用完整邀请码')
+            logger.warning(f'邀请码无效: {code}')
+            return ErrorResponse(msg='邀请码无效或对方不是认证打手')
 
         if buddy.id == user.id:
             return ErrorResponse(msg='不能添加自己为搭子')
@@ -156,6 +178,7 @@ class BuddyRelationViewSet(CustomModelViewSet):
             user_a=buddy, user_b=user
         )
         if existing.exists():
+            logger.info(f'已是搭子: user={user.id}, buddy={buddy.id}')
             return ErrorResponse(msg='已经是搭子了')
 
         buddy_relation = BuddyRelation.objects.create(
@@ -163,6 +186,7 @@ class BuddyRelationViewSet(CustomModelViewSet):
             user_b=buddy,
             status=BuddyRelation.BUDDY_ACTIVE
         )
+        logger.info(f'搭子绑定成功: relation_id={buddy_relation.id}')
         return SuccessResponse(data=BuddyRelationSerializer(buddy_relation).data, msg='绑定成功')
 
     @action(methods=['POST'], detail=True)

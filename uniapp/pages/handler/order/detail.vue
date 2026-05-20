@@ -96,25 +96,33 @@
       <view style="height: 40rpx;"></view>
     </scroll-view>
 
-    <!-- 搭子选择弹窗 -->
-    <view v-if="showBuddyModal" class="modal-mask" @click="closeBuddyModal">
-      <view class="modal-content" @click.stop>
-        <view class="modal-header">
-          <text class="modal-title">选择搭子</text>
-          <text class="modal-close" @click="closeBuddyModal">×</text>
+    <!-- 搭子选择抽屉 -->
+    <view v-if="showBuddyModal" class="drawer-mask" @click="closeBuddyModal">
+      <view class="drawer-content" @click.stop>
+        <view class="drawer-header">
+          <text class="drawer-title">邀请搭子</text>
+          <view class="drawer-handle-bar"></view>
+          <text class="drawer-close" @click="closeBuddyModal">✕</text>
         </view>
-        <view class="modal-body">
+        <scroll-view scroll-y class="drawer-body">
           <view v-if="loadingBuddies" class="buddy-loading">加载中...</view>
           <view v-else-if="buddies.length === 0" class="buddy-empty">
-            <text>暂无搭子，请先去"我的-搭子"中添加搭子</text>
+            <text>暂无搭子，请先去「我的 - 搭子」中添加搭子</text>
           </view>
           <view v-else class="buddy-list">
             <view v-for="b in buddies" :key="b.id" class="buddy-item" @click="inviteBuddy(b)">
-              <text class="buddy-name">{{ getBuddyName(b) }}</text>
+              <view class="buddy-avatar-wrap">
+                <image v-if="b.buddy && b.buddy.avatar_url" :src="getImageUrl(b.buddy.avatar_url)" class="buddy-avatar" mode="aspectFill" />
+                <text v-else class="buddy-avatar-text">{{ (getBuddyName(b) || '?')[0] }}</text>
+              </view>
+              <view class="buddy-info">
+                <text class="buddy-name">{{ getBuddyName(b) }}</text>
+                <text class="buddy-status" :class="'status-' + b.status">{{ getBuddyStatusText(b.status) }}</text>
+              </view>
               <text class="invite-tag">邀请</text>
             </view>
           </view>
-        </view>
+        </scroll-view>
       </view>
     </view>
 
@@ -237,13 +245,16 @@ export default {
     },
 
     getBuddyName(buddy) {
-      // my 接口返回的关系，user_a 是当前用户
-      return buddy.user_b_nickname || buddy.user_b || '搭子'
+      return (buddy.buddy && buddy.buddy.nickname) || '搭子'
+    },
+    getBuddyStatusText(status) {
+      const map = { 0: '待确认', 1: '活跃', 2: '已删除' }
+      return map[status] || '未知'
     },
 
     async inviteBuddy(buddy) {
       try {
-        const buddyId = buddy.user_b || buddy.id
+        const buddyId = (buddy.buddy && buddy.buddy.id) || buddy.id
         const res = await post(ORDER_API.inviteBuddy(this.orderId), { buddy_id: buddyId })
         showToast(res.msg || '已邀请搭子', 'success')
         this.closeBuddyModal()
@@ -339,15 +350,57 @@ export default {
   box-shadow: 0 4rpx 16rpx rgba(0, 180, 216, 0.3); width: 100%; box-sizing: border-box;
 }
 
-.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; display: flex; align-items: center; justify-content: center; }
-.modal-content { width: 600rpx; max-height: 70vh; background: #FFFFFF; border-radius: 24rpx; overflow: hidden; display: flex; flex-direction: column; }
-.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 32rpx; border-bottom: 1rpx solid #F0F0F0; flex-shrink: 0; }
-.modal-title { font-size: 32rpx; font-weight: 700; color: #1A1A1A; }
-.modal-close { font-size: 48rpx; color: #999; line-height: 1; }
-.modal-body { padding: 24rpx; overflow-y: auto; flex: 1; }
-.buddy-loading, .buddy-empty { text-align: center; padding: 40rpx; font-size: 26rpx; color: #999; }
-.buddy-list { display: flex; flex-direction: column; gap: 16rpx; }
-.buddy-item { display: flex; align-items: center; justify-content: space-between; padding: 24rpx; background: #F8F8F8; border-radius: 16rpx; }
-.buddy-name { font-size: 28rpx; color: #1A1A1A; font-weight: 600; }
-.invite-tag { font-size: 24rpx; color: #9D4EDD; font-weight: 600; padding: 4rpx 16rpx; background: rgba(157,78,221,0.1); border-radius: 12rpx; }
+/* 搭子选择抽屉 */
+.drawer-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 999; }
+.drawer-content {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  max-height: 70vh;
+  background: #FFFFFF; border-radius: 32rpx 32rpx 0 0;
+  display: flex; flex-direction: column;
+  animation: slideUp 0.3s ease;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.drawer-header {
+  display: flex; align-items: center; justify-content: center;
+  padding: 24rpx 32rpx 16rpx;
+  border-bottom: 1rpx solid #F0F0F0; position: relative; flex-shrink: 0;
+}
+.drawer-handle-bar {
+  position: absolute; top: 16rpx; left: 50%; transform: translateX(-50%);
+  width: 64rpx; height: 8rpx; background: #E0E0E0; border-radius: 4rpx;
+}
+.drawer-title { font-size: 32rpx; font-weight: 700; color: #1A1A1A; }
+.drawer-close {
+  position: absolute; right: 32rpx; top: 50%; transform: translateY(-50%);
+  font-size: 40rpx; color: #999; line-height: 1;
+}
+.drawer-body { padding: 24rpx; padding-bottom: calc(24rpx + 180rpx); overflow-y: auto; flex: 1; }
+.buddy-loading, .buddy-empty { text-align: center; padding: 60rpx; font-size: 26rpx; color: #999; }
+.buddy-list { display: flex; flex-direction: column; gap: 0;width: calc(100vw - 40rpx); }
+.buddy-item {
+  display: flex; align-items: center; gap: 16rpx;
+  padding: 20rpx 0; border-bottom: 1rpx solid #F0F0F0;
+}
+.buddy-item:last-child { border-bottom: none; }
+.buddy-avatar-wrap {
+  width: 72rpx; height: 72rpx; border-radius: 50%; overflow: hidden;
+  background: rgba(0, 180, 216, 0.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.buddy-avatar { width: 100%; height: 100%; }
+.buddy-avatar-text { font-size: 32rpx; font-weight: 700; color: #00B4D8; }
+.buddy-info { flex: 1; display: flex; flex-direction: column; gap: 4rpx; }
+.buddy-name { font-size: 28rpx; font-weight: 600; color: #1A1A1A; }
+.buddy-status { font-size: 22rpx; }
+.buddy-status.status-1 { color: #00C853; }
+.buddy-status.status-0 { color: #FF9800; }
+.buddy-status.status-2 { color: #999999; }
+.invite-tag {
+  font-size: 24rpx; color: #9D4EDD; font-weight: 600;
+  padding: 6rpx 20rpx; background: rgba(157,78,221,0.1); border-radius: 20rpx;
+  margin-right: 8rpx;
+}
 </style>

@@ -78,7 +78,7 @@
           <view class="modal-body center">
             <text class="invite-tip">让搭子扫码即可绑定</text>
             <view class="qrcode-wrap">
-              <canvas canvas-id="inviteQrcode" id="inviteQrcode" class="qrcode-canvas" />
+              <canvas canvas-id="inviteQrcode" id="inviteQrcode" :width="200" :height="200" style="width: 200px; height: 200px;" />
               <view v-if="!qrcodeTempPath" class="qrcode-placeholder">
                 <text>生成中...</text>
               </view>
@@ -170,9 +170,12 @@ export default {
     },
 
     async loadBuddyList() {
+      console.log('==== 加载搭子列表 ====')
       try {
         const res = await get(BUDDY_API.my)
+        console.log('my接口返回:', JSON.stringify(res))
         this.buddyList = Array.isArray(res) ? res : (res && res.results) || []
+        console.log('buddyList赋值后:', JSON.stringify(this.buddyList))
       } catch (e) {
         console.error('获取搭子列表失败', e)
       }
@@ -187,19 +190,25 @@ export default {
       return map[status] || '未知'
     },
 
-    async generateInviteCode() {
+    async     generateInviteCode() {
+      console.log('==== 生成邀请码 ====')
       uni.showLoading({ title: '生成中...' })
       try {
         const res = await post(BUDDY_API.generateCode, {})
+        console.log('generateCode返回:', JSON.stringify(res))
         const code = res.code || res.invite_code || ''
         this.inviteCode = code
         this.qrcodeTempPath = ''
         this.showInviteModal = true
-        // 等 canvas 渲染完毕再绘制
         this.$nextTick(() => {
-          this.drawQrcode(code)
+          const info = this.userInfo || {}
+          const expire = Math.floor(Date.now() / 1000) + 600 // 10分钟后过期
+          const qrText = `BIND:code=${code}&expire=${expire}&uid=${info.id || ''}`
+          console.log('QR内容:', qrText)
+          this.drawQrcode(qrText)
         })
       } catch (e) {
+        console.error('generateCode报错:', JSON.stringify(e))
         showToast(e.msg || '生成邀请码失败')
         this.closeInviteModal()
       } finally {
@@ -208,23 +217,122 @@ export default {
     },
 
     drawQrcode(text) {
-      const size = 320
-      uQRCode.make({
-        canvasId: 'inviteQrcode',
-        text: text,
-        size: size,
-        margin: 16,
-        backgroundColor: '#FFFFFF',
-        foregroundColor: '#9D4EDD',
-        correctLevel: 3,
-        success: (tempFilePath) => {
-          this.qrcodeTempPath = tempFilePath
+      console.log('drawQrcode 被调用，text=', text)
+      const size = 200
+      const logoUrl = 'https://hctht-ogn-1410707956.cos.ap-shanghai.myqcloud.com/xcx/%E6%98%9F%E9%99%85%E6%80%AA%E5%85%BDlo.png'
+      const logoSize = 40 // logo 宽高
+      const logoRadius = 8
+
+      const ctx = uni.createCanvasContext('inviteQrcode')
+
+      let instance
+      try {
+        instance = new uQRCode.QRCode(0, 3)
+        instance.addData(uQRCode.utf16To8(text))
+        instance.make()
+      } catch(e) {
+        console.error('QR生成失败', e)
+        return
+      }
+
+      const tileW = (size - 20) / instance.getModuleCount()
+      const tileH = tileW
+
+      // 1. 画白底
+      ctx.setFillStyle('#FFFFFF')
+      ctx.fillRect(0, 0, size, size)
+
+      // 2. 画二维码模块
+      ctx.setFillStyle('#000000')
+      for (let row = 0; row < instance.getModuleCount(); row++) {
+        for (let col = 0; col < instance.getModuleCount(); col++) {
+          if (instance.isDark(row, col)) {
+            const x = Math.round(col * tileW) + 10
+            const y = Math.round(row * tileH) + 10
+            const w = Math.ceil((col + 1) * tileW) - Math.floor(col * tileW)
+            const h = Math.ceil((row + 1) * tileH) - Math.floor(row * tileH)
+            ctx.fillRect(x, y, w, h)
+          }
+        }
+      }
+
+      // 3. 画白色圆角矩形背景（logo 区域）
+      const center = size / 2
+      const bgX = center - logoSize / 2 - 6
+      const bgY = center - logoSize / 2 - 6
+      const bgW = logoSize + 12
+      const bgH = logoSize + 12
+      ctx.setFillStyle('#FFFFFF')
+      this._roundRect(ctx, bgX, bgY, bgW, bgH, logoRadius + 2)
+      ctx.fill()
+
+      // 4. 下载 logo 并绘制
+      uni.downloadFile({
+        url: logoUrl,
+        success: (res) => {
+          console.log('logo 下载成功', res.tempFilePath)
+          // 画 logo（圆角裁切用遮罩实现）
+          ctx.save()
+          this._roundRect(ctx, center - logoSize / 2, center - logoSize / 2, logoSize, logoSize, logoRadius)
+          ctx.clip()
+          ctx.drawImage(res.tempFilePath, center - logoSize / 2, center - logoSize / 2, logoSize, logoSize)
+          ctx.restore()
+          ctx.draw(false, () => {
+            setTimeout(() => {
+              uni.canvasToTempFilePath({
+                canvasId: 'inviteQrcode',
+                fileType: 'png',
+                destWidth: size,
+                destHeight: size,
+                quality: 1,
+                success: (ret) => {
+                  console.log('导出成功', ret.tempFilePath)
+                  this.qrcodeTempPath = ret.tempFilePath
+                },
+                fail: (err) => {
+                  console.error('导出失败', err)
+                  this.qrcodeTempPath = ''
+                },
+              })
+            }, 200)
+          })
         },
         fail: (err) => {
-          console.error('二维码绘制失败', err)
-          this.qrcodeTempPath = ''
+          console.error('logo 下载失败', err)
+          // 无 logo 时直接导出纯二维码
+          ctx.draw(false, () => {
+            setTimeout(() => {
+              uni.canvasToTempFilePath({
+                canvasId: 'inviteQrcode',
+                fileType: 'png',
+                destWidth: size,
+                destHeight: size,
+                quality: 1,
+                success: (ret) => {
+                  this.qrcodeTempPath = ret.tempFilePath
+                },
+                fail: () => {
+                  this.qrcodeTempPath = ''
+                },
+              })
+            }, 200)
+          })
         },
       })
+    },
+
+    _roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath()
+      ctx.moveTo(x + r, y)
+      ctx.lineTo(x + w - r, y)
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+      ctx.lineTo(x + w, y + h - r)
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+      ctx.lineTo(x + r, y + h)
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+      ctx.lineTo(x, y + r)
+      ctx.quadraticCurveTo(x, y, x + r, y)
+      ctx.closePath()
     },
 
     closeInviteModal() {
@@ -234,26 +342,69 @@ export default {
     },
 
     scanInviteCode() {
+      console.log('==== 扫码开始 ====')
       uni.scanCode({
         onlyFromCamera: true,
         success: async (res) => {
-          const code = res.result || res.code
-          if (!code) {
+          console.log('scanCode success:', JSON.stringify(res))
+          const raw = res.result || res.code || ''
+          console.log('原始扫码内容:', raw)
+          if (!raw) {
             showToast('扫码内容为空')
             return
           }
-          uni.showLoading({ title: '绑定中...' })
           try {
-            await post(BUDDY_API.bind, { code })
+            const raw = res.result || res.code || ''
+            console.log('原始扫码内容:', raw)
+            if (!raw) {
+              showToast('扫码内容为空')
+              return
+            }
+            // 解析 BIND:code=XXX&expire=XXX&uid=XXX 格式
+            let code, expire, uid
+            if (raw.startsWith('BIND:')) {
+              const params = raw.slice(5).split('&')
+              params.forEach(p => {
+                const [k, v] = p.split('=')
+                if (k === 'code') code = v
+                if (k === 'expire') expire = parseInt(v || '0')
+                if (k === 'uid') uid = v
+              })
+            } else {
+              try {
+                const url = new URL(raw)
+                code = url.searchParams.get('code')
+                expire = parseInt(url.searchParams.get('expire') || '0')
+                uid = url.searchParams.get('uid')
+              } catch (_) {
+                showToast('无效的邀请码')
+                return
+              }
+            }
+            console.log('解析参数: code=', code, 'expire=', expire, 'uid=', uid)
+            if (!code || !expire || !uid) {
+              showToast('无效的邀请码')
+              return
+            }
+            const now = Math.floor(Date.now() / 1000)
+            if (now > expire) {
+              showToast('邀请码已过期，请重新生成')
+              return
+            }
+            uni.showLoading({ title: '绑定中...' })
+            const result = await post(BUDDY_API.bind, { code, expire, uid })
+            console.log('bind接口返回:', JSON.stringify(result))
             showToast('绑定成功', 'success')
             this.loadBuddyList()
           } catch (e) {
-            showToast(e.msg || '绑定失败')
+            console.error('扫码处理异常:', JSON.stringify(e))
+            showToast(e.msg || e.message || '绑定失败')
           } finally {
             uni.hideLoading()
           }
         },
         fail: (e) => {
+          console.error('scanCode fail:', JSON.stringify(e))
           if (e.errMsg !== 'scanCode:fail cancel') {
             showToast('扫码失败')
           }
@@ -406,12 +557,14 @@ export default {
 .modal-body.center { display: flex; flex-direction: column; align-items: center; gap: 20rpx; }
 .invite-tip { font-size: 26rpx; color: #666666; }
 .qrcode-wrap {
-  width: 400rpx; height: 400rpx;
-  background: #F5F5F5; border-radius: 16rpx;
+  width: 240px; height: 240px;
+  background: #FFFFFF; border-radius: 16rpx;
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
+  border: 2rpx solid #E8E8E8;
+  padding: 20px;
 }
-.qrcode-canvas { width: 400rpx; height: 400rpx; }
+.qrcode-canvas { }
 .qrcode-placeholder { font-size: 26rpx; color: #999999; }
 .invite-code { font-size: 28rpx; color: #9D4EDD; font-weight: 700; letter-spacing: 4rpx; }
 </style>
