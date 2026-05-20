@@ -33,7 +33,7 @@ class EscortUserSerializer(CustomModelSerializer):
     class Meta:
         model = EscortUser
         read_only_fields = ["id"]
-        fields = ['id', 'openid', 'nickname', 'avatar_url', 'phone', 'real_name', 'id_card', 'id_card_front', 'id_card_back', 'hunter_status', 'hunter_status_display', 'balance', 'total_income', 'total_withdrawal', 'completed_orders', 'avg_rating', 'apply_time', 'approve_time', 'reject_reason', 'create_datetime', 'update_datetime', 'creator', 'modifier']
+        fields = ['id', 'openid', 'nickname', 'avatar_url', 'phone', 'real_name', 'id_card', 'id_card_front', 'id_card_back', 'hunter_status', 'hunter_status_display', 'balance', 'total_income', 'total_withdrawal', 'wx_auth_authorized', 'completed_orders', 'avg_rating', 'apply_time', 'approve_time', 'reject_reason', 'create_datetime', 'update_datetime', 'creator', 'modifier']
         extra_kwargs = {
             "openid": {"required": False},
             "unionid": {"required": False},

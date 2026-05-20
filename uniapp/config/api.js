@@ -100,6 +100,12 @@ const WITHDRAWAL_API = {
   list: `${BASE_URL}/api/escort/app/withdrawal/`,
   /** 申请提现 */
   apply: `${BASE_URL}/api/escort/app/withdrawal/apply/`,
+  /** 检查微信免确认授权状态 */
+  checkAuth: `${BASE_URL}/api/escort/app/withdrawal/check_authorization/`,
+  /** 请求微信免确认授权 */
+  authorizeWx: `${BASE_URL}/api/escort/app/withdrawal/authorize_wx/`,
+  /** 确认授权完成 */
+  confirmAuth: `${BASE_URL}/api/escort/app/withdrawal/confirm_authorization/`,
 }
 
 // ================================================================

@@ -75,6 +75,9 @@ class EscortUser(CoreModel):
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='余额', help_text='用户可用余额')
     total_income = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='总收入', help_text='累计总收入')
     total_withdrawal = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='总提现', help_text='累计提现金额')
+
+    # 微信授权相关
+    wx_auth_authorized = models.BooleanField(default=False, verbose_name='微信免确认授权', help_text='用户是否已授权微信免确认收款')
     
     # 统计字段
     completed_orders = models.IntegerField(default=0, verbose_name='完成订单数', help_text='已完成的订单数量')

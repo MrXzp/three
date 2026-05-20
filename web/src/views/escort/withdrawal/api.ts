@@ -41,3 +41,36 @@ export function DelObj(id: DelReq) {
         data: { id },
     });
 }
+
+/**
+ * 批准提现申请（进入处理中）
+ */
+export function ApproveWithdrawal(id: number, data?: any) {
+    return request({
+        url: apiPrefix + id + '/approve/',
+        method: 'post',
+        data: data || {},
+    });
+}
+
+/**
+ * 确认打款（调用微信企业付款）
+ */
+export function CompleteWithdrawal(id: number, data?: any) {
+    return request({
+        url: apiPrefix + id + '/complete/',
+        method: 'post',
+        data: data || {},
+    });
+}
+
+/**
+ * 拒绝提现申请
+ */
+export function RejectWithdrawal(id: number, data: { review_notes: string }) {
+    return request({
+        url: apiPrefix + id + '/reject/',
+        method: 'post',
+        data,
+    });
+}

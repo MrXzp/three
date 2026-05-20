@@ -3,6 +3,17 @@
     <custom-navbar title="提现申请" :showBack="true" />
 
     <scroll-view scroll-y class="content" :style="{ top: '176rpx', bottom: tabBarBottom + 'px' }">
+      <!-- 未授权提示 -->
+      <view class="auth-card" v-if="!authorized">
+        <view class="auth-icon">🔐</view>
+        <view class="auth-title">需要授权微信免确认收款</view>
+        <view class="auth-desc">授权后，提现将自动到账，无需手动确认</view>
+        <view class="auth-btn" @click="handleAuthorize">
+          <text>去授权</text>
+        </view>
+      </view>
+
+      <template v-else>
       <!-- 可提现余额 -->
       <view class="balance-card">
         <text class="balance-label">可提现余额</text>
@@ -49,6 +60,7 @@
       <view class="submit-btn" :class="{ disabled: !canSubmit || submitting }" @click="handleSubmit">
         <text>{{ submitting ? '提交中...' : '立即提现' }}</text>
       </view>
+      </template>
     </scroll-view>
   </view>
 </template>
@@ -60,7 +72,7 @@ import { showToast, showModal } from '@/utils/common.js'
 import customNavbar from '@/components/custom-navbar/custom-navbar.vue'
 
 const QUICK_VALUES = [100, 200, 400]
-const MIN_AMOUNT = 10
+const MIN_AMOUNT = 0.1
 const MAX_AMOUNT = 5000
 
 export default {
@@ -71,6 +83,9 @@ export default {
       amount: '',
       submitting: false,
       tabBarBottom: 0,
+      authorized: false,
+      authorizing: false,
+      pendingAuthId: '',
     }
   },
 
@@ -100,6 +115,7 @@ export default {
     },
     canSubmit() {
       return (
+        this.authorized &&
         this.amountNum >= MIN_AMOUNT &&
         this.amountNum <= MAX_AMOUNT &&
         this.amountNum <= this.balanceNum
@@ -116,6 +132,7 @@ export default {
 
   onLoad() {
     this.loadBalance()
+    this.checkAuth()
   },
 
   methods: {
@@ -124,6 +141,66 @@ export default {
         const user = await get(USER_API.current)
         this.balance = user && user.balance ? String(user.balance) : '0.00'
       } catch (e) { /* no data */ }
+    },
+
+    async checkAuth() {
+      try {
+        const res = await get(WITHDRAWAL_API.checkAuth)
+        this.authorized = res && res.data && res.data.authorized
+      } catch (e) { /* ignore */ }
+    },
+
+    async handleAuthorize() {
+      if (this.authorizing) return
+      this.authorizing = true
+      try {
+        const res = await post(WITHDRAWAL_API.authorizeWx, {})
+        if (res.code !== 0) {
+          showToast(res.msg || '授权请求失败')
+          return
+        }
+        const { authorization_id, package_info } = res.data || {}
+        this.pendingAuthId = authorization_id
+
+        // 拉起微信授权小程序
+        uni.navigateToMiniProgram({
+          appId: 'wx4c1a3e7c47b9f12a', // 微信支付小程序 appId
+          path: 'pages/open/facetoface?package=' + encodeURIComponent(package_info),
+          fail: (err) => {
+            showToast('打开微信授权页失败，请稍后重试')
+            console.error('navigateToMiniProgram fail:', err)
+          },
+          success: () => {
+            // 用户已跳转，等待授权结果回调
+            showToast('请在微信中完成授权')
+            // 轮询检查授权状态
+            this._pollAuthStatus()
+          },
+        })
+      } catch (e) {
+        showToast('授权失败：' + (e.msg || e.message || '未知错误'))
+      } finally {
+        this.authorizing = false
+      }
+    },
+
+    _pollAuthStatus() {
+      let count = 0
+      const timer = setInterval(async () => {
+        count++
+        if (count > 30) {
+          clearInterval(timer)
+          return
+        }
+        try {
+          const res = await get(WITHDRAWAL_API.checkAuth)
+          if (res && res.data && res.data.authorized) {
+            clearInterval(timer)
+            this.authorized = true
+            showToast('授权成功！可以提现了', 'success')
+          }
+        } catch (e) { /* ignore */ }
+      }, 2000)
     },
 
     onAmountInput() {
@@ -231,4 +308,27 @@ export default {
   box-shadow: 0 4rpx 16rpx rgba(255, 51, 102, 0.3); margin-bottom: 60rpx; width: 100%; box-sizing: border-box;
 }
 .submit-btn.disabled { opacity: 0.5; }
+
+.auth-card {
+  background: #FFFFFF;
+  border-radius: 24rpx;
+  padding: 60rpx 40rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24rpx;
+  margin-bottom: 32rpx;
+}
+.auth-icon { font-size: 80rpx; }
+.auth-title { font-size: 34rpx; font-weight: 700; color: #1A1A1A; }
+.auth-desc { font-size: 26rpx; color: #666666; text-align: center; line-height: 1.6; }
+.auth-btn {
+  background: linear-gradient(135deg, #00B4D8, #00C853);
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 700;
+  padding: 20rpx 64rpx;
+  border-radius: 48rpx;
+  box-shadow: 0 4rpx 16rpx rgba(0, 180, 216, 0.3);
+}
 </style>
