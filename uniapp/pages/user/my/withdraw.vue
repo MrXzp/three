@@ -3,17 +3,6 @@
     <custom-navbar title="提现申请" :showBack="true" />
 
     <scroll-view scroll-y class="content" :style="{ top: '176rpx', bottom: tabBarBottom + 'px' }">
-      <!-- 未授权提示 -->
-      <view class="auth-card" v-if="!authorized">
-        <view class="auth-icon">🔐</view>
-        <view class="auth-title">需要授权微信免确认收款</view>
-        <view class="auth-desc">授权后，提现将自动到账，无需手动确认</view>
-        <view class="auth-btn" @click="handleAuthorize">
-          <text>去授权</text>
-        </view>
-      </view>
-
-      <template v-else>
       <!-- 可提现余额 -->
       <view class="balance-card">
         <text class="balance-label">可提现余额</text>
@@ -51,16 +40,15 @@
       <!-- 说明 -->
       <view class="tips-card">
         <text class="tips-title">💡 提现说明</text>
-        <text class="tips-item">• 平台将在1-3个工作日内完成处理</text>
-        <text class="tips-item">• 单笔提现最低 ¥10，最高 ¥5000</text>
-        <text class="tips-item">• 提现全额到账，收益自行申报个人所得税</text>
+        <text class="tips-item">• 提现将转入您的微信零钱</text>
+        <text class="tips-item">• 请在微信中确认收款</text>
+        <text class="tips-item">• 单笔提现最低 ¥0.1，最高 ¥5000</text>
       </view>
 
       <!-- 提交按钮 -->
       <view class="submit-btn" :class="{ disabled: !canSubmit || submitting }" @click="handleSubmit">
         <text>{{ submitting ? '提交中...' : '立即提现' }}</text>
       </view>
-      </template>
     </scroll-view>
   </view>
 </template>
@@ -71,7 +59,7 @@ import { get, post } from '@/utils/request.js'
 import { showToast, showModal } from '@/utils/common.js'
 import customNavbar from '@/components/custom-navbar/custom-navbar.vue'
 
-const QUICK_VALUES = [100, 200, 400]
+const QUICK_VALUES = [10, 50, 100]
 const MIN_AMOUNT = 0.1
 const MAX_AMOUNT = 5000
 
@@ -83,9 +71,6 @@ export default {
       amount: '',
       submitting: false,
       tabBarBottom: 0,
-      authorized: false,
-      authorizing: false,
-      pendingAuthId: '',
     }
   },
 
@@ -115,7 +100,6 @@ export default {
     },
     canSubmit() {
       return (
-        this.authorized &&
         this.amountNum >= MIN_AMOUNT &&
         this.amountNum <= MAX_AMOUNT &&
         this.amountNum <= this.balanceNum
@@ -123,7 +107,7 @@ export default {
     },
     validationMsg() {
       if (!this.amountNum) return '请输入提现金额'
-      if (this.amountNum < MIN_AMOUNT) return '提现金额最低 ¥10'
+      if (this.amountNum < MIN_AMOUNT) return '提现金额最低 ¥0.1'
       if (this.amountNum > MAX_AMOUNT) return '单笔提现最高 ¥5000'
       if (this.amountNum > this.balanceNum) return '提现金额不能超过可提现余额'
       return ''
@@ -132,7 +116,6 @@ export default {
 
   onLoad() {
     this.loadBalance()
-    this.checkAuth()
   },
 
   methods: {
@@ -141,66 +124,6 @@ export default {
         const user = await get(USER_API.current)
         this.balance = user && user.balance ? String(user.balance) : '0.00'
       } catch (e) { /* no data */ }
-    },
-
-    async checkAuth() {
-      try {
-        const res = await get(WITHDRAWAL_API.checkAuth)
-        this.authorized = res && res.data && res.data.authorized
-      } catch (e) { /* ignore */ }
-    },
-
-    async handleAuthorize() {
-      if (this.authorizing) return
-      this.authorizing = true
-      try {
-        const res = await post(WITHDRAWAL_API.authorizeWx, {})
-        if (res.code !== 0) {
-          showToast(res.msg || '授权请求失败')
-          return
-        }
-        const { authorization_id, package_info } = res.data || {}
-        this.pendingAuthId = authorization_id
-
-        // 拉起微信授权小程序
-        uni.navigateToMiniProgram({
-          appId: 'wx4c1a3e7c47b9f12a', // 微信支付小程序 appId
-          path: 'pages/open/facetoface?package=' + encodeURIComponent(package_info),
-          fail: (err) => {
-            showToast('打开微信授权页失败，请稍后重试')
-            console.error('navigateToMiniProgram fail:', err)
-          },
-          success: () => {
-            // 用户已跳转，等待授权结果回调
-            showToast('请在微信中完成授权')
-            // 轮询检查授权状态
-            this._pollAuthStatus()
-          },
-        })
-      } catch (e) {
-        showToast('授权失败：' + (e.msg || e.message || '未知错误'))
-      } finally {
-        this.authorizing = false
-      }
-    },
-
-    _pollAuthStatus() {
-      let count = 0
-      const timer = setInterval(async () => {
-        count++
-        if (count > 30) {
-          clearInterval(timer)
-          return
-        }
-        try {
-          const res = await get(WITHDRAWAL_API.checkAuth)
-          if (res && res.data && res.data.authorized) {
-            clearInterval(timer)
-            this.authorized = true
-            showToast('授权成功！可以提现了', 'success')
-          }
-        } catch (e) { /* ignore */ }
-      }, 2000)
     },
 
     onAmountInput() {
@@ -217,18 +140,68 @@ export default {
         showToast(this.validationMsg, 'none')
         return
       }
+
       const confirmed = await showModal({
         title: '确认提现',
-        content: '提现金额 ¥' + this.amountNum + '，确定提交吗？',
+        content: '提现金额 ¥' + this.amountNum + '，请在微信中确认收款',
       })
       if (!confirmed.confirm) return
 
       this.submitting = true
       try {
-        await post(WITHDRAWAL_API.apply, { amount: this.amountNum })
-        showToast('提现申请已提交', 'success')
-        uni.$emit('userInfoUpdate')
-        setTimeout(() => uni.navigateBack(), 1500)
+        // 1. 调用后端接口，发起微信转账
+        const res = await post(WITHDRAWAL_API.authorizeWx, {
+          amount: this.amountNum,
+        })
+
+        if (res.code !== 0) {
+          showToast(res.msg || '发起提现失败')
+          return
+        }
+
+        const { package_info, out_bill_no, state } = res.data || {}
+
+        // 2. 如果状态是直接成功（免确认）
+        if (state === 'SUCCESS') {
+          showToast('提现成功，金额已到账', 'success')
+          uni.$emit('userInfoUpdate')
+          setTimeout(() => uni.navigateBack(), 1500)
+          return
+        }
+
+        // 3. 需要用户确认，拉起微信收款确认页
+        if (!package_info) {
+          showToast('获取收款信息失败')
+          return
+        }
+
+        // 检查是否支持 requestMerchantTransfer
+        if (!wx.requestMerchantTransfer) {
+          showToast('当前微信版本不支持，请升级')
+          return
+        }
+
+        wx.requestMerchantTransfer({
+          mchId: '1106364727', // 商户号
+          appId: 'wxc9849c4b7aedae78', // 小程序AppID
+          package: package_info,
+          success: (res) => {
+            // 页面拉起成功，不代表转账成功
+            showToast('请在微信中确认收款', 'none', 3000)
+            uni.$emit('userInfoUpdate')
+            setTimeout(() => uni.navigateBack(), 2000)
+          },
+          fail: (err) => {
+            console.error('拉起转账页面失败', err)
+            // 用户取消或失败，不算提交失败
+            if (err.errMsg && err.errMsg.indexOf('cancel') !== -1) {
+              showToast('已取消提现', 'none')
+            } else {
+              showToast('打开收款页面失败，请重试')
+            }
+          }
+        })
+
       } catch (e) {
         showToast(e && e.msg ? e.msg : '提交失败')
       } finally {
@@ -308,27 +281,4 @@ export default {
   box-shadow: 0 4rpx 16rpx rgba(255, 51, 102, 0.3); margin-bottom: 60rpx; width: 100%; box-sizing: border-box;
 }
 .submit-btn.disabled { opacity: 0.5; }
-
-.auth-card {
-  background: #FFFFFF;
-  border-radius: 24rpx;
-  padding: 60rpx 40rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 24rpx;
-  margin-bottom: 32rpx;
-}
-.auth-icon { font-size: 80rpx; }
-.auth-title { font-size: 34rpx; font-weight: 700; color: #1A1A1A; }
-.auth-desc { font-size: 26rpx; color: #666666; text-align: center; line-height: 1.6; }
-.auth-btn {
-  background: linear-gradient(135deg, #00B4D8, #00C853);
-  color: #fff;
-  font-size: 30rpx;
-  font-weight: 700;
-  padding: 20rpx 64rpx;
-  border-radius: 48rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0, 180, 216, 0.3);
-}
 </style>
