@@ -104,12 +104,15 @@ DATABASES = {
     "default": {
         "ENGINE": DATABASE_ENGINE,
         "NAME": DATABASE_NAME,
+    }
+}
+if "mysql" in DATABASE_ENGINE:
+    DATABASES["default"].update({
         "USER": DATABASE_USER,
         "PASSWORD": DATABASE_PASSWORD,
         "HOST": DATABASE_HOST,
         "PORT": DATABASE_PORT,
-    }
-}
+    })
 AUTH_USER_MODEL = "system.Users"
 USERNAME_FIELD = "username"
 
