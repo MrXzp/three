@@ -121,16 +121,13 @@ const openAuditDialog = (row: any) => {
     auditDialogVisible.value = true;
 };
 
-// 通过审核，并自动执行退款
+// 通过审核（approve接口已包含退款逻辑）
 const handleApprove = async () => {
     auditLoading.value = true;
     try {
         await ApproveRefund(auditRow.value.id, { review_notes: reviewNotes.value });
         ElMessage.success('退款已通过');
         auditDialogVisible.value = false;
-        // 自动执行退款
-        await ExecuteRefund(auditRow.value.id);
-        ElMessage.success('退款执行成功');
         crudExpose.doRefresh();
     } catch (e: any) {
         ElMessage.error(e.message || '操作失败');
