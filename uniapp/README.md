@@ -118,8 +118,8 @@ uniapp/
 修改 `config/api.js` 中的 `BASE_URL`：
 
 ```javascript
-const BASE_URL = 'http://localhost:8000'  // 开发环境
-// const BASE_URL = 'https://your-domain.com'  // 生产环境
+// const BASE_URL = 'http://localhost:8000'  // 开发环境
+const BASE_URL = 'https://your-domain.com'  // 生产环境
 ```
 
 ### 2. 微信小程序配置

@@ -9,7 +9,7 @@ import {
 } from '@fast-crud/fast-crud';
 
 /** 图片回显前缀，写死后端地址，避免 getBaseURL 拼接出错 */
-export const IMAGE_BASE_URL = 'http://127.0.0.1:18088';
+export const IMAGE_BASE_URL = import.meta.env.VITE_MEDIA_URL;
 
 /** 编辑回显时，给相对路径拼上完整前缀 */
 function joinImageUrl(path: string): string {
